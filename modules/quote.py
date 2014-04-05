@@ -540,7 +540,7 @@ def trending(phenny, input):
             "now", "find", "long", "down", "day", "did", "get", "come",
             "made", "may", "part", "it's", "", "!grab", "!nocontext",
             "!quote", "!random", "i", "me", "am", "just", "!trending",
-            "lol", "!give",
+            "lol", "!give", "!wc"
         ]
     ]
 
