@@ -2,7 +2,6 @@ import urllib
 import json
 import re
 
-#api_token = "AIzaSyDTUQPINbestkAy2-5D72wHviFnLYzoDZI"
 get_data_url = "http://gdata.youtube.com/feeds/api/videos/%s?v=2&alt=json"
 
 
