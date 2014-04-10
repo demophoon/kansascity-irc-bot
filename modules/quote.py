@@ -119,6 +119,7 @@ Base.metadata.create_all(engine)
 high_five_avail = False
 current_high_five = None
 
+
 def setup(phenny):
     global DBSession
     global Base
@@ -351,6 +352,29 @@ word_count.priority = 'medium'
 word_count.thread = False
 
 
+def points(phenny, input):
+    matches = re.search(points.rule, input.group())
+    target = matches.groups()[0]
+    user = DBSession.query(User).filter(
+        User.nick == target
+    ).first()
+    if not user:
+        return
+    user_points = {}
+    for pt in [(x.type, x.value) for x in user.points]:
+        if pt[0] not in user_points:
+            user_points[pt[0]] = 0
+        user_points[pt[0]] += pt[1]
+    user_points = collections.Counter(user_points)
+    phenny.say("Top 5 for %s: %s" % (
+        target,
+        ", ".join(["%s (%d)" % x for x in user_points.most_common(5)])
+    ))
+points.rule = r'^!points ([a-zA-Z0-9-_]+)'
+points.priority = 'medium'
+points.thread = False
+
+
 #def leaderboard(phenny, input):
 #    user_points = DBSession.query(sa.func.sum(Point.value)).join(User).filter(
 #        Point.type == 'respect'
@@ -429,7 +453,9 @@ def give_user_point(phenny, input):
     else:
         quantity = int(quantity)
     if quantity > 1:
-        if point_type.endswith("es"):
+        if point_type.endswith("ies"):
+            point_type = point_type[:-3] + "y"
+        elif point_type.endswith("es"):
             point_type = point_type[:-2]
         elif point_type.endswith("s"):
             point_type = point_type[:-1]
@@ -453,6 +479,8 @@ def give_user_point(phenny, input):
             if not(user_points == 1):
                 if point_type.endswith("es"):
                     pass
+                elif point_type.endswith("y"):
+                    point_type = point_type[:-1] + "ies"
                 elif point_type.endswith("s"):
                     point_type += "es"
                 else:
@@ -540,7 +568,7 @@ def trending(phenny, input):
             "now", "find", "long", "down", "day", "did", "get", "come",
             "made", "may", "part", "it's", "", "!grab", "!nocontext",
             "!quote", "!random", "i", "me", "am", "just", "!trending",
-            "lol", "!give", "!wc"
+            "lol", "!give", "!wc", "\x01action", "!points",
         ]
     ]
 
@@ -600,3 +628,13 @@ def your_mom(phenny, input):
         phenny.say(msg)
 your_mom.rule = r"^.* (is|has|used to be) (\w+)\W?$"
 your_mom.priority = 'medium'
+
+
+@smart_ignore
+def op_giver(phenny, input):
+    matches = re.search(op_giver.rule, input.group())
+    target = matches.groups()[0]
+    if input.owner:
+        phenny.write(['MODE', input.sender, "+o", target])
+op_giver.rule = r'^!op ([a-zA-Z0-9-_]+)$'
+op_giver.priority = 'medium'
