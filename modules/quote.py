@@ -236,7 +236,7 @@ def grab(phenny, input):
     target = matches.groups()[0]
     if target == input.nick:
         phenny.say(random.choice(grab_yourself_warnings))
-    elif target == "demophoon":
+    elif target == phenny.nick:
         phenny.say("I cannot let you do that.")
     else:
         message = DBSession.query(Message).join(User).join(Room).filter(
@@ -498,7 +498,7 @@ give_user_point.thread = False
 def add_point(phenny, input):
     matches = re.search(add_point.rule, input.group())
     target = matches.groups()[0]
-    if not(target == input.nick) or target == "demophoon":
+    if not(target == input.nick) or target == phenny.nick:
         user_id = DBSession.query(User).filter(User.nick == target).first()
         if user_id:
             DBSession.add(Point("respect", user_id.id))
@@ -522,7 +522,7 @@ add_point.thread = False
 def remove_point(phenny, input):
     matches = re.search(remove_point.rule, input.group())
     target = matches.groups()[0]
-    if not(target == input.nick) or target == "demophoon":
+    if not(target == input.nick) or target == phenny.nick:
         user_id = DBSession.query(User).filter(User.nick == target).first()
         if user_id:
             DBSession.add(Point("respect", user_id.id, -1))
@@ -544,8 +544,29 @@ remove_point.thread = False
 
 @smart_ignore
 def trending(phenny, input):
-    #matches = re.search(trending.rule, input.group())
-    #target = matches.groups()[0]
+    ignore_list = [
+        "the", "of", "and", "a", "to", "in", "is", "you", "that",
+        "it", "he", "was", "for", "on", "are", "as", "with", "his",
+        "they", "i", "at", "be", "this", "have", "from", "or",
+        "one", "had", "by", "word", "but", "not", "what", "all",
+        "were", "we", "when", "your", "can", "said", "there", "use",
+        "an", "each", "which", "she", "do", "how", "their", "if",
+        "will", "up", "other", "about", "out", "many", "then",
+        "them", "these", "so", "some", "her", "would", "make", "like",
+        "him", "into", "time", "has", "look", "two", "more", "write",
+        "go", "see", "number", "no", "way", "could", "people", "my",
+        "than", "first", "water", "been", "call", "who", "oil", "its",
+        "now", "find", "long", "down", "day", "did", "get", "come",
+        "made", "may", "part", "it's", "", "!grab", "!nocontext",
+        "!quote", "!random", "i", "me", "am", "just", "!trending",
+        "lol", "!give", "!wc", "\x01action", "!points",
+    ]
+    ignore_list += [phenny.nick.lower(),
+                    "%s:" % phenny.nick.lower(),
+                    "%s," % phenny.nick.lower()]
+    ignore_list += [x.nick.lower() for x in DBSession.query(User).all()]
+    ignore_list += ["%s:" % x.nick.lower() for x in DBSession.query(User).all()]
+    ignore_list += ["%s," % x.nick.lower() for x in DBSession.query(User).all()]
     start_time = datetime.datetime.now() - datetime.timedelta(hours=4)
     words = [
         word for word in
@@ -553,23 +574,7 @@ def trending(phenny, input):
             Room.name == input.sender
         ).filter(
             Message.created_at > start_time
-        ).all()]).lower().split(' ') if word not in [
-            "the", "of", "and", "a", "to", "in", "is", "you", "that",
-            "it", "he", "was", "for", "on", "are", "as", "with", "his",
-            "they", "I", "at", "be", "this", "have", "from", "or",
-            "one", "had", "by", "word", "but", "not", "what", "all",
-            "were", "we", "when", "your", "can", "said", "there", "use",
-            "an", "each", "which", "she", "do", "how", "their", "if",
-            "will", "up", "other", "about", "out", "many", "then",
-            "them", "these", "so", "some", "her", "would", "make", "like",
-            "him", "into", "time", "has", "look", "two", "more", "write",
-            "go", "see", "number", "no", "way", "could", "people", "my",
-            "than", "first", "water", "been", "call", "who", "oil", "its",
-            "now", "find", "long", "down", "day", "did", "get", "come",
-            "made", "may", "part", "it's", "", "!grab", "!nocontext",
-            "!quote", "!random", "i", "me", "am", "just", "!trending",
-            "lol", "!give", "!wc", "\x01action", "!points",
-        ]
+        ).all()]).lower().split(' ') if word not in ignore_list
     ]
 
     most_common = collections.Counter(words).most_common(10)
