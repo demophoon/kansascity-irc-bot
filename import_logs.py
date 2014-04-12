@@ -1,6 +1,7 @@
 import re
 import logging
 import unicodedata
+import datetime
 
 from modules import (
     quote,
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 class phenny_fake(object):
 
     """A fake phenny for importing the logs."""
+
+    nick = "demophoon"
 
     def __init__(self):
         """@todo: to be defined1. """
@@ -35,47 +38,101 @@ class message_handler(str):
 
 
 def main():
-    regex = re.compile(r"^\d+:\d+\W+<\W?([a-zA-Z0-9-_]+)\W\s(.*)$", re.MULTILINE)
+    msg_regex = re.compile(r"^(\d+:\d+)\W+<\W?([a-zA-Z0-9-_]+)\W\s(.*)$")
+
+    # --- Log opened Wed Apr 09 15:43:47 2014
+    # --- Day changed Thu Apr 10 2014
+    date_regex = re.compile(r"^--- \w+ \w+ \w+ (\w+) (\d+).*(\d\d\d\d)")
 
     logfiles = [
         ("/home/britt/.irssi/logs/freenode/#r_kansascity.log", "#r/kansascity"),
         ("/home/britt/.irssi/logs/freenode/##kcshoptalk.log", "##kcshoptalk"),
+        ("/home/britt/.irssi/logs/freenode/##brittslittlesliceofheaven.log", "##brittslittlesliceofheaven"),
     ]
 
+    month_translation = {
+        "jan": 1,
+        "feb": 2,
+        "mar": 3,
+        "apr": 4,
+        "may": 5,
+        "jun": 6,
+        "jul": 7,
+        "aug": 8,
+        "sep": 9,
+        "oct": 10,
+        "nov": 11,
+        "dec": 12,
+    }
+
+
+    p = phenny_fake()
+
+    valid_methods = [
+        quote.logger,
+        quote.grab,
+        quote.add_point,
+        #quote.fetch_quote,
+        #quote.random_user_quote,
+        #quote.no_context,
+        #quote.random_quote,
+        #quote.rimshot,
+        #quote.word_count,
+        #quote.points,
+        quote.give_user_point,
+        quote.remove_point,
+        #quote.trending,
+        #quote.unsad,
+        #quote.sandwich,
+        #quote.your_mom,
+        #game_tools.coin_flip,
+        #game_tools.this_or_that,
+    ]
+
+    valid_methods = [(re.compile(x.rule), x) for x in valid_methods]
+
     for filename, roomname in logfiles:
-        log = open(filename).read()
-        matches = [x for x in regex.findall(log) if not x[0] == "demophoon"]
 
-        p = phenny_fake()
+        sender = roomname
+        with open(filename, "r+") as log:
+            current_day = datetime.datetime(2000, 1, 1)
+            for line in log:
+                msg_matches = msg_regex.search(line)
+                if msg_matches:
+                    nick = msg_matches.groups()[1]
 
-        valid_methods = [
-            quote.logger,
-            quote.grab,
-            quote.add_point,
-            quote.fetch_quote,
-            quote.random_user_quote,
-            quote.no_context,
-            quote.random_quote,
-            quote.rimshot,
-            game_tools.coin_flip,
-            game_tools.this_or_that,
-        ]
+                    if nick == "demophoon":
+                        continue
 
-        for match in matches:
-            msg = match[1].decode("ascii", "ignore")
-            msg = unicodedata.normalize("NFKD", msg)
-            m = message_handler(msg)
-            m.nick = match[0]
-            m.sender = roomname
-            m.message = match[1]
+                    message = msg_matches.groups()[2]
+                    hours = int(msg_matches.groups()[0].split(":")[0])
+                    minutes = int(msg_matches.groups()[0].split(":")[1])
+                    date = current_day + datetime.timedelta(
+                        hours=hours, minutes=minutes)
 
-            for method in valid_methods:
-                if re.match(method.rule, msg):
-                    if not method == quote.logger:
-                        print "%s: %s" % (m.nick, m)
-                    method(p, m)
+                    quote.get_current_time = lambda: date
 
-    exit(0)
+                    msg = message.decode("ascii", "ignore")
+                    msg = unicodedata.normalize("NFKD", msg)
+                    m = message_handler(msg)
+                    m.nick = nick
+                    m.sender = sender
+                    m.message = message
+
+                    for method in valid_methods:
+                        if method[0].match(msg):
+                            if not method[1] == quote.logger:
+                                print "%s <%s>: %s" % (str(date), m.nick, m)
+                            method[1](p, m)
+
+                else:
+                    date_matches = date_regex.match(line)
+                    if not date_matches:
+                        continue
+                    year = int(date_matches.groups()[2])
+                    day = int(date_matches.groups()[1])
+                    month = int(month_translation[date_matches.groups()[0].lower()])
+                    current_day = datetime.datetime(year, month, day)
 
 
 if __name__ == '__main__':
