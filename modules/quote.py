@@ -28,6 +28,10 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 Base = declarative_base()
 
 
+def get_current_time():
+    return datetime.datetime.now()
+
+
 def check_ignore(phenny, input):
     nick = input.nick
     for ignored_nick in ignored_nicks:
@@ -52,7 +56,7 @@ class Message(Base):
     created_at = Column(DateTime)
 
     def __init__(self):
-        self.created_at = datetime.datetime.now()
+        self.created_at = get_current_time()
 
 
 class Room(Base):
@@ -78,7 +82,7 @@ class Quote(Base):
     created_at = Column(DateTime)
 
     def __init__(self):
-        self.created_at = datetime.datetime.now()
+        self.created_at = get_current_time()
 
 
 class Point(Base):
@@ -92,7 +96,7 @@ class Point(Base):
     user = relationship("User", backref="points")
 
     def __init__(self, type, user_id, value=1):
-        self.created_at = datetime.datetime.now()
+        self.created_at = get_current_time()
         self.type = type
         self.user_id = user_id
         self.value = value
@@ -399,7 +403,6 @@ def give_highfive(phenny, input):
     r = regex.search(current_high_five['type'])
     matching_type = r.groups()[0]
     if not highfive_type == matching_type:
-        print highfive_type, matching_type
         return
 
     user_id = DBSession.query(User).filter(User.nick == input.nick).first()
@@ -448,10 +451,13 @@ def give_user_point(phenny, input):
     target = matches.groups()[0]
     quantity = matches.groups()[1]
     point_type = matches.groups()[2].lower()
-    if quantity.lower() in ["a", "an"]:
+    if quantity.lower() in ["a", "an", "another", "one"]:
         quantity = 1
     else:
-        quantity = int(quantity)
+        try:
+            quantity = int(quantity)
+        except Exception:
+            return
     if quantity > 1:
         if point_type.endswith("ies"):
             point_type = point_type[:-3] + "y"
@@ -481,7 +487,7 @@ def give_user_point(phenny, input):
                     pass
                 elif point_type.endswith("y"):
                     point_type = point_type[:-1] + "ies"
-                elif point_type.endswith("s"):
+                elif point_type.endswith("s") or point_type.endswith("x"):
                     point_type += "es"
                 else:
                     point_type += "s"
@@ -489,7 +495,7 @@ def give_user_point(phenny, input):
                 phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
             else:
                 phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
-give_user_point.rule = r'^!give ([a-zA-Z0-9-_]+) (an?|-?\d+) ([a-zA-Z0-9, ]+)'
+give_user_point.rule = r'^!give ([a-zA-Z0-9-_]+) (\w+|-?\d+) ([a-zA-Z0-9, ]+)'
 give_user_point.priority = 'medium'
 give_user_point.thread = False
 
@@ -567,7 +573,7 @@ def trending(phenny, input):
     ignore_list += [x.nick.lower() for x in DBSession.query(User).all()]
     ignore_list += ["%s:" % x.nick.lower() for x in DBSession.query(User).all()]
     ignore_list += ["%s," % x.nick.lower() for x in DBSession.query(User).all()]
-    start_time = datetime.datetime.now() - datetime.timedelta(hours=4)
+    start_time = get_current_time() - datetime.timedelta(hours=4)
     words = [
         word for word in
         ' '.join([x.body for x in DBSession.query(Message).join(Room).filter(
@@ -624,11 +630,12 @@ rimshot.priority = 'medium'
 @smart_ignore
 def your_mom(phenny, input):
     matches = re.search(your_mom.rule, input.group())
+    if not matches:
+        return
     msg = "Your mom %s %s." % (
         matches.groups()[0],
         matches.groups()[1],
     )
-    print msg
     if random.choice(range(7)) == 0:
         phenny.say(msg)
 your_mom.rule = r"^.* (is|has|used to be) (\w+)\W?$"
