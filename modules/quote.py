@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 ignored_nicks = [
+    ".*bot",
 ]
 
 import datetime
@@ -453,6 +454,8 @@ def give_user_point(phenny, input):
     point_type = matches.groups()[2].lower()
     if quantity.lower() in ["a", "an", "another", "one"]:
         quantity = 1
+    elif quantity.lower() in ["some"]:
+        quantity = random.choice(range(2,10))
     else:
         try:
             quantity = int(quantity)
@@ -498,6 +501,65 @@ def give_user_point(phenny, input):
 give_user_point.rule = r'^!give ([a-zA-Z0-9-_]+) (\w+|-?\d+) ([a-zA-Z0-9, ]+)'
 give_user_point.priority = 'medium'
 give_user_point.thread = False
+
+
+@smart_ignore
+def take_user_point(phenny, input):
+    banned_types = ['respect', 'high five']
+    matches = re.search(take_user_point.rule, input.group())
+    target = matches.groups()[2]
+    quantity = matches.groups()[0]
+    point_type = matches.groups()[1].lower()
+    if quantity.lower() in ["a", "an", "another", "one"]:
+        quantity = 1
+    elif quantity.lower() in ["some"]:
+        quantity = random.choice(range(2,10))
+    else:
+        try:
+            quantity = int(quantity)
+        except Exception:
+            return
+    quantity *= -1
+    if quantity > 1:
+        if point_type.endswith("ies"):
+            point_type = point_type[:-3] + "y"
+        elif point_type.endswith("es"):
+            point_type = point_type[:-2]
+        elif point_type.endswith("s"):
+            point_type = point_type[:-1]
+    if abs(quantity) > 10:
+        phenny.say("Woah there buddy, slow down.")
+        return
+    if not(target == input.nick) and point_type not in banned_types:
+        user_id = DBSession.query(User).filter(User.nick == target).first()
+        if user_id:
+            DBSession.add(Point(point_type, user_id.id, quantity))
+            DBSession.flush()
+            DBSession.commit()
+            points = DBSession.query(Point).join(
+                User
+            ).filter(
+                Point.type == point_type
+            ).filter(User.nick == target).all()
+            user_points = 0
+            for point in points:
+                user_points += point.value
+            if not(user_points == 1):
+                if point_type.endswith("es"):
+                    pass
+                elif point_type.endswith("y"):
+                    point_type = point_type[:-1] + "ies"
+                elif point_type.endswith("s") or point_type.endswith("x"):
+                    point_type += "es"
+                else:
+                    point_type += "s"
+            if not user_points == 1:
+                phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
+            else:
+                phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
+take_user_point.rule = r'^!take (\w+|-?\d+) ([a-zA-Z0-9, ]+) from ([a-zA-Z0-9-_]+)'
+take_user_point.priority = 'medium'
+take_user_point.thread = False
 
 
 @smart_ignore
@@ -609,7 +671,7 @@ def unsad(phenny, input):
         ":-]",
     ]))
 
-unsad.rule = r'(:\W*[\(\[\{]|[D\)\]\}]\W*:)'
+unsad.rule = r'$^(:\W*[\(\[\{]|[D\)\]\}]\W*:)'
 unsad.priority = 'medium'
 
 
