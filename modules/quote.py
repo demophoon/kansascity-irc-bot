@@ -163,7 +163,7 @@ highfives = [
     {
         "type": "throws both hands in the air for a double high five!",
         "value": 2,
-        "response": "gives %(nick)s a double high five and two %(item)s seeing that they not have %(points)d %(item)s.",
+        "response": "gives %(nick)s a double high five and two %(item)s seeing that they now have %(points)d %(item)s.",
     },
     {
         "type": "puts his ass in the air for an ass five",
@@ -245,7 +245,7 @@ def grab(phenny, input):
         phenny.say("I cannot let you do that.")
     else:
         message = DBSession.query(Message).join(User).join(Room).filter(
-            User.nick == target
+            User.nick.ilike("%s%%" % target)
         ).filter(
             Room.name == input.sender
         ).order_by(Message.created_at.desc()).first()
@@ -305,7 +305,7 @@ def random_user_quote(phenny, input):
     ).join(User).join(Room).filter(
         Room.name == input.sender
     ).filter(
-        User.nick == target
+        User.nick.ilike("%s%%" % target)
     ).order_by(
         sa.func.random()
     ).first()
@@ -326,9 +326,7 @@ def fetch_quote(phenny, input):
     target = matches.groups()[0]
     quote = DBSession.query(Quote).join(
         Message
-    ).join(User).join(Room).filter(
-        Room.name == input.sender
-    ).filter(
+    ).join(User).filter(
         Quote.id == int(target)
     ).first()
     if quote:
@@ -361,7 +359,7 @@ def points(phenny, input):
     matches = re.search(points.rule, input.group())
     target = matches.groups()[0]
     user = DBSession.query(User).filter(
-        User.nick == target
+        User.nick.ilike("%s%%" % target)
     ).first()
     if not user:
         return
@@ -372,12 +370,57 @@ def points(phenny, input):
         user_points[pt[0]] += pt[1]
     user_points = collections.Counter(user_points)
     phenny.say("Top 5 for %s: %s" % (
-        target,
+        user.nick,
         ", ".join(["%s (%d)" % x for x in user_points.most_common(5)])
     ))
 points.rule = r'^!points ([a-zA-Z0-9-_]+)'
 points.priority = 'medium'
 points.thread = False
+
+
+def duration(seconds):
+    d = datetime.datetime(1,1,1) + seconds
+    fstr = ""
+    if d.day - 1 > 0:
+        if d.day - 1 == 1:
+            fstr += "%d day " % (d.day - 1)
+        else:
+            fstr += "%d days " % (d.day - 1)
+    if d.hour > 0:
+        if d.hour == 1:
+            fstr += "%d hour " % d.hour
+        else:
+            fstr += "%d hours " % d.hour
+    if d.minute > 0:
+        if d.minute == 1:
+            fstr += "%d minute " % d.minute
+        else:
+            fstr += "%d minutes " % d.minute
+    if d.second > 0:
+        if d.second == 1:
+            fstr += "%d second " % d.second
+        else:
+            fstr += "%d seconds " % d.second
+    return fstr
+
+
+def last_active(phenny, input):
+    matches = re.search(last_active.rule, input.group())
+    target = matches.groups()[0]
+    user = DBSession.query(User).join(Message).join(
+        Room
+    ).filter(
+        Room.name == input.sender
+    ).filter(
+        User.nick.ilike("%s%%" % target)
+    ).first()
+    if not user:
+        return
+    delta = get_current_time() - user.messages[-1].created_at
+    phenny.say("User %s was last active %sago" % (user.nick, duration(delta)))
+last_active.rule = r'^!active ([a-zA-Z0-9-_]+)'
+last_active.priority = 'medium'
+last_active.thread = False
 
 
 #def leaderboard(phenny, input):
@@ -471,8 +514,21 @@ def give_user_point(phenny, input):
     if abs(quantity) > 10:
         phenny.say("Woah there buddy, slow down.")
         return
+    if target.lower() in ["everyone", "everybody"]:
+        start_time = get_current_time() - datetime.timedelta(hours=4)
+        points = [Point(point_type, x.id, quantity) for x in DBSession.query(
+            User
+        ).join(Message).join(Room).filter(
+            Room.name == input.sender
+        ).filter(
+            Message.created_at > start_time
+        ).distinct().all()]
+        DBSession.add_all(points)
+        DBSession.flush()
+        DBSession.commit()
+        phenny.say("Done! ^.^")
     if not(target == input.nick) and point_type not in banned_types:
-        user_id = DBSession.query(User).filter(User.nick == target).first()
+        user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
         if user_id:
             DBSession.add(Point(point_type, user_id.id, quantity))
             DBSession.flush()
@@ -481,7 +537,7 @@ def give_user_point(phenny, input):
                 User
             ).filter(
                 Point.type == point_type
-            ).filter(User.nick == target).all()
+            ).filter(User.nick.ilike("%s%%" % target)).all()
             user_points = 0
             for point in points:
                 user_points += point.value
@@ -498,7 +554,7 @@ def give_user_point(phenny, input):
                 phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
             else:
                 phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
-give_user_point.rule = r'^!give ([a-zA-Z0-9-_]+) (\w+|-?\d+) ([a-zA-Z0-9, ]+)'
+give_user_point.rule = r'^!give ([a-zA-Z0-9-_]+) (\w+|-?\d+) ([a-zA-Z0-9,\- ]+)'
 give_user_point.priority = 'medium'
 give_user_point.thread = False
 
@@ -531,7 +587,7 @@ def take_user_point(phenny, input):
         phenny.say("Woah there buddy, slow down.")
         return
     if not(target == input.nick) and point_type not in banned_types:
-        user_id = DBSession.query(User).filter(User.nick == target).first()
+        user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
         if user_id:
             DBSession.add(Point(point_type, user_id.id, quantity))
             DBSession.flush()
@@ -540,7 +596,7 @@ def take_user_point(phenny, input):
                 User
             ).filter(
                 Point.type == point_type
-            ).filter(User.nick == target).all()
+            ).filter(User.nick.ilike("%s%%" % target)).all()
             user_points = 0
             for point in points:
                 user_points += point.value
@@ -557,7 +613,7 @@ def take_user_point(phenny, input):
                 phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
             else:
                 phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
-take_user_point.rule = r'^!take (\w+|-?\d+) ([a-zA-Z0-9, ]+) from ([a-zA-Z0-9-_]+)'
+take_user_point.rule = r'^!take (\w+|-?\d+) ([a-zA-Z0-9,\- ]+) from ([a-zA-Z0-9-_]+)'
 take_user_point.priority = 'medium'
 take_user_point.thread = False
 
@@ -567,7 +623,7 @@ def add_point(phenny, input):
     matches = re.search(add_point.rule, input.group())
     target = matches.groups()[0]
     if not(target == input.nick) or target == phenny.nick:
-        user_id = DBSession.query(User).filter(User.nick == target).first()
+        user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
         if user_id:
             DBSession.add(Point("respect", user_id.id))
             DBSession.flush()
@@ -576,7 +632,7 @@ def add_point(phenny, input):
                 User
             ).filter(
                 Point.type == "respect"
-            ).filter(User.nick == target).all()
+            ).filter(User.nick.ilike("%s%%" % target)).all()
             user_points = 0
             for point in points:
                 user_points += point.value
@@ -591,7 +647,7 @@ def remove_point(phenny, input):
     matches = re.search(remove_point.rule, input.group())
     target = matches.groups()[0]
     if not(target == input.nick) or target == phenny.nick:
-        user_id = DBSession.query(User).filter(User.nick == target).first()
+        user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
         if user_id:
             DBSession.add(Point("respect", user_id.id, -1))
             DBSession.flush()
@@ -600,7 +656,7 @@ def remove_point(phenny, input):
                 User
             ).filter(
                 Point.type == "respect"
-            ).filter(User.nick == target).all()
+            ).filter(User.nick.ilike("%s%%" % target)).all()
             user_points = 0
             for point in points:
                 user_points += point.value
@@ -687,6 +743,13 @@ def rimshot(phenny, input):
     phenny.say("Buh dum tsh")
 rimshot.rule = "^!rimshot"
 rimshot.priority = 'medium'
+
+
+@smart_ignore
+def pod_bay_doors(phenny, input):
+    phenny.say("I'm sorry Dave, I'm afraid I can't do that")
+pod_bay_doors.rule = "^!?open the pod bay doors(, demophoon)?"
+pod_bay_doors.priority = 'medium'
 
 
 @smart_ignore

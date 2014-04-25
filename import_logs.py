@@ -80,6 +80,7 @@ def main():
         #quote.word_count,
         #quote.points,
         quote.give_user_point,
+        quote.take_user_point,
         quote.remove_point,
         #quote.trending,
         #quote.unsad,
