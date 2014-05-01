@@ -46,5 +46,5 @@ def yt_context(phenny, input):
 # https://www.youtube.com/watch?v=ygr5AHufBN4
 # https://youtu.be/ygr5AHufBN4
 
-yt_context.rule = r'.*https?://.*?youtu.*=?([a-zA-Z0-9_-]{11}).*'
+yt_context.rule = r'.*https?://.*?youtu[a-zA-Z\./=\?]*([a-zA-Z0-9_-]{11})(&list=)?'
 yt_context.priority = 'medium'
