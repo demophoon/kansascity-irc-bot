@@ -18,7 +18,7 @@ def this_or_that(phenny, input):
     target = matches.groups()[0]
     phenny.say(random.choice(target.split(" or ")))
 
-this_or_that.rule = r"^demophoon\W+(.+ or .+)\??$"
+this_or_that.rule = r"^demophoon\W?([a-zA-Z0-9\-_, ]+ or [a-zA-Z0-9\-_, ]+)\W*$"
 this_or_that.priority = "medium"
 
 
