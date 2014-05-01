@@ -19,6 +19,7 @@ from sqlalchemy import (
     Integer,
     String,
     DateTime,
+    not_
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -79,7 +80,9 @@ class Quote(Base):
     __tablename__ = 'quote'
     id = Column(Integer, primary_key=True)
     message_id = Column(Integer, ForeignKey("message.id"))
-    message = relationship("Message", backref="quotes")
+    grabbed_by = Column(Integer, ForeignKey("user.id"))
+    message = relationship("Message")
+    who_grabbed = relationship("User", backref="quotes")
     created_at = Column(DateTime)
 
     def __init__(self):
@@ -238,7 +241,10 @@ grab_yourself_warnings = [
 @smart_ignore
 def grab(phenny, input):
     matches = re.search(grab.rule, input.group())
+    if not matches:
+        return
     target = matches.groups()[0]
+    offset = matches.groups()[1] or 0
     if target == input.nick:
         phenny.say(random.choice(grab_yourself_warnings))
     elif target == phenny.nick:
@@ -248,35 +254,56 @@ def grab(phenny, input):
             User.nick.ilike("%s%%" % target)
         ).filter(
             Room.name == input.sender
-        ).order_by(Message.created_at.desc()).first()
+        ).filter(
+            not_(Message.body.like("!%"))
+        ).order_by(Message.created_at.desc()).all()
         if not message:
             phenny.say("I don't remember what %s said. :(" % target)
         else:
+            message = message[int(offset)]
+            grabber_user = DBSession.query(User).filter(
+                User.nick.ilike("%s%%" % input.nick)
+            ).first()
             new_quote = Quote()
             new_quote.message_id = message.id
+            new_quote.grabbed_by = grabber_user.id
             DBSession.add(new_quote)
             DBSession.flush()
             DBSession.commit()
             phenny.say("Quote %d added" % new_quote.id)
-
-
-grab.rule = r'^!grab ([a-zA-Z0-9-_]+)'
+grab.rule = r'^!grab ([a-zA-Z0-9-_]+)\s*-?([0-9]+)?'
 grab.priority = 'medium'
 grab.thread = False
+
+
+@smart_ignore
+def touch(phenny, input):
+    matches = re.search(touch.rule, input.group())
+    if not matches:
+        return
+    target = matches.groups()[0]
+    target = "lgebaur"
+    phenny.msg(input.sender, action("touches %s with a moist foot." % target))
+touch.rule = r'^!touch ([a-zA-Z0-9-_]+)'
+touch.priority = 'medium'
 
 
 @smart_ignore
 def random_quote(phenny, input):
     quote = DBSession.query(Quote).join(
         Message
-    ).join(Room).join(User).filter(
+    ).join(User).join(Room).filter(
         Room.name == input.sender
     ).order_by(
         sa.func.random()
     ).first()
     if quote:
-        phenny.say("Quote #%d from %s: '%s'" % (
-            quote.id, quote.message.user.nick, quote.message.body))
+        phenny.say("Quote #%d grabbed by %s: <%s> %s" % (
+            quote.id,
+            quote.who_grabbed.nick,
+            quote.message.user.nick,
+            quote.message.body
+        ))
 
 random_quote.rule = r'^!random$'
 random_quote.priority = 'medium'
@@ -299,6 +326,8 @@ no_context.thread = False
 @smart_ignore
 def random_user_quote(phenny, input):
     matches = re.search(random_user_quote.rule, input.group())
+    if not matches:
+        return
     target = matches.groups()[0]
     quote = DBSession.query(Quote).join(
         Message
@@ -310,8 +339,12 @@ def random_user_quote(phenny, input):
         sa.func.random()
     ).first()
     if quote:
-        phenny.say("Quote #%d from %s: '%s'" % (
-            quote.id, quote.message.user.nick, quote.message.body))
+        phenny.say("Quote #%d grabbed by %s: <%s> %s" % (
+            quote.id,
+            quote.who_grabbed.nick,
+            quote.message.user.nick,
+            quote.message.body
+        ))
     else:
         phenny.say("No quotes from %s" % target)
 
@@ -323,6 +356,8 @@ random_user_quote.thread = False
 @smart_ignore
 def fetch_quote(phenny, input):
     matches = re.search(fetch_quote.rule, input.group())
+    if not matches:
+        return
     target = matches.groups()[0]
     quote = DBSession.query(Quote).join(
         Message
@@ -330,8 +365,12 @@ def fetch_quote(phenny, input):
         Quote.id == int(target)
     ).first()
     if quote:
-        phenny.say("Quote #%d from %s: '%s'" % (
-            quote.id, quote.message.user.nick, quote.message.body))
+        phenny.say("Quote #%d grabbed by %s: <%s> %s" % (
+            quote.id,
+            quote.who_grabbed.nick,
+            quote.message.user.nick,
+            quote.message.body
+        ))
     else:
         phenny.say("Quote does not exist.")
 fetch_quote.rule = r'^!quote (\d+)$'
@@ -342,6 +381,8 @@ fetch_quote.thread = False
 @smart_ignore
 def word_count(phenny, input):
     matches = re.search(word_count.rule, input.group())
+    if not matches:
+        return
     target = matches.groups()[0]
     wc = " ".join([x.body for x in DBSession.query(Message).join(
         Room).filter(Room.name == input.sender).all()]).lower().count(target.lower())
@@ -357,7 +398,9 @@ word_count.thread = False
 
 def points(phenny, input):
     matches = re.search(points.rule, input.group())
-    target = matches.groups()[0]
+    if not matches:
+        return
+    target = matches.groups()[1]
     user = DBSession.query(User).filter(
         User.nick.ilike("%s%%" % target)
     ).first()
@@ -369,11 +412,11 @@ def points(phenny, input):
             user_points[pt[0]] = 0
         user_points[pt[0]] += pt[1]
     user_points = collections.Counter(user_points)
-    phenny.say("Top 5 for %s: %s" % (
+    phenny.say("Top 10 for %s: %s" % (
         user.nick,
-        ", ".join(["%s (%d)" % x for x in user_points.most_common(5)])
+        ", ".join(["%s (%d)" % x for x in user_points.most_common(10)])
     ))
-points.rule = r'^!points ([a-zA-Z0-9-_]+)'
+points.rule = r'^!(point|score|inventory)s? ([a-zA-Z0-9-_]+)'
 points.priority = 'medium'
 points.thread = False
 
@@ -406,7 +449,9 @@ def duration(seconds):
 
 def last_active(phenny, input):
     matches = re.search(last_active.rule, input.group())
-    target = matches.groups()[0]
+    if not matches:
+        return
+    target = matches.groups()[1]
     user = DBSession.query(User).join(Message).join(
         Room
     ).filter(
@@ -416,9 +461,16 @@ def last_active(phenny, input):
     ).first()
     if not user:
         return
+    if user.nick == input.nick:
+        phenny.say("Stahp Et >:(")
+        return
     delta = get_current_time() - user.messages[-1].created_at
-    phenny.say("User %s was last active %sago" % (user.nick, duration(delta)))
-last_active.rule = r'^!active ([a-zA-Z0-9-_]+)'
+    phenny.say("User %s last message was %sago: %s" % (
+        user.nick,
+        duration(delta),
+        user.messages[-1].body
+    ))
+last_active.rule = r'^!(active|last) ([a-zA-Z0-9-_]+)'
 last_active.priority = 'medium'
 last_active.thread = False
 
@@ -441,6 +493,8 @@ def give_highfive(phenny, input):
         return
 
     matches = re.search(give_highfive.rule, input.group())
+    if not matches:
+        return
     highfive_type = matches.groups()[0]
 
     regex = re.compile(" an? ([a-zA-Z- ]+) five")
@@ -492,6 +546,8 @@ give_highfive.thread = False
 def give_user_point(phenny, input):
     banned_types = ['respect', 'high five']
     matches = re.search(give_user_point.rule, input.group())
+    if not matches:
+        return
     target = matches.groups()[0]
     quantity = matches.groups()[1]
     point_type = matches.groups()[2].lower()
@@ -527,7 +583,7 @@ def give_user_point(phenny, input):
         DBSession.flush()
         DBSession.commit()
         phenny.say("Done! ^.^")
-    if not(target == input.nick) and point_type not in banned_types:
+    elif not(target == input.nick) and point_type not in banned_types:
         user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
         if user_id:
             DBSession.add(Point(point_type, user_id.id, quantity))
@@ -563,6 +619,8 @@ give_user_point.thread = False
 def take_user_point(phenny, input):
     banned_types = ['respect', 'high five']
     matches = re.search(take_user_point.rule, input.group())
+    if not matches:
+        return
     target = matches.groups()[2]
     quantity = matches.groups()[0]
     point_type = matches.groups()[1].lower()
@@ -621,6 +679,8 @@ take_user_point.thread = False
 @smart_ignore
 def add_point(phenny, input):
     matches = re.search(add_point.rule, input.group())
+    if not matches:
+        return
     target = matches.groups()[0]
     if not(target == input.nick) or target == phenny.nick:
         user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
@@ -645,6 +705,8 @@ add_point.thread = False
 @smart_ignore
 def remove_point(phenny, input):
     matches = re.search(remove_point.rule, input.group())
+    if not matches:
+        return
     target = matches.groups()[0]
     if not(target == input.nick) or target == phenny.nick:
         user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
@@ -746,6 +808,20 @@ rimshot.priority = 'medium'
 
 
 @smart_ignore
+def command_help(phenny, input):
+    phenny.say(random.choice([
+        "You will have to get by on your own.",
+        "nou.",
+        "Help Not Implemented.",
+        "http://nooooooooooooooo.com/",
+        "The request is understood, but has been refused.",
+        "Please try again later.",
+    ]))
+command_help.rule = "^!help"
+command_help.priority = 'medium'
+
+
+@smart_ignore
 def pod_bay_doors(phenny, input):
     phenny.say("I'm sorry Dave, I'm afraid I can't do that")
 pod_bay_doors.rule = "^!?open the pod bay doors(, demophoon)?"
@@ -770,6 +846,8 @@ your_mom.priority = 'medium'
 @smart_ignore
 def op_giver(phenny, input):
     matches = re.search(op_giver.rule, input.group())
+    if not matches:
+        return
     target = matches.groups()[0]
     if input.owner:
         phenny.write(['MODE', input.sender, "+o", target])
