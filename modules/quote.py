@@ -683,15 +683,20 @@ take_user_point.thread = False
 
 
 @smart_ignore
-def add_point(phenny, input):
-    matches = re.search(add_point.rule, input.group())
+def give_respect(phenny, input):
+    matches = re.search(give_respect.rule, input.group())
     if not matches:
         return
     target = matches.groups()[0]
+    if matches.groups()[1] == "++":
+        quantity = 1
+    else:
+        quantity = -1
+    awarded_by = DBSession.query(User).filter(User.nick.ilike("%s%%" % input.nick)).first()
     if not(target == input.nick) or target == phenny.nick:
         user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
         if user_id:
-            DBSession.add(Point("respect", user_id.id))
+            DBSession.add(Point("respect", user_id.id, awarded_by.id, quantity))
             DBSession.flush()
             DBSession.commit()
             points = DBSession.query(Point).join(
@@ -703,35 +708,9 @@ def add_point(phenny, input):
             for point in points:
                 user_points += point.value
             phenny.say("%s now has %d respect." % (user_id.nick, user_points))
-add_point.rule = r"([a-zA-Z0-9_]+)\+\+"
-add_point.priority = 'medium'
-add_point.thread = False
-
-
-@smart_ignore
-def remove_point(phenny, input):
-    matches = re.search(remove_point.rule, input.group())
-    if not matches:
-        return
-    target = matches.groups()[0]
-    if not(target == input.nick) or target == phenny.nick:
-        user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
-        if user_id:
-            DBSession.add(Point("respect", user_id.id, -1))
-            DBSession.flush()
-            DBSession.commit()
-            points = DBSession.query(Point).join(
-                User
-            ).filter(
-                Point.type == "respect"
-            ).filter(User.nick.ilike("%s%%" % target)).all()
-            user_points = 0
-            for point in points:
-                user_points += point.value
-            phenny.say("%s now has %d respect." % (user_id.nick, user_points))
-remove_point.rule = r"([a-zA-Z0-9_]+)--"
-remove_point.priority = 'medium'
-remove_point.thread = False
+give_respect.rule = r".*([a-zA-Z0-9_]+)(\+\+|--)"
+give_respect.priority = 'medium'
+give_respect.thread = False
 
 
 @smart_ignore
