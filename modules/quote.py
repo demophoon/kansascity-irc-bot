@@ -36,6 +36,8 @@ def get_current_time():
 
 def check_ignore(phenny, input):
     nick = input.nick
+    if not input.sender.startswith("#"):
+        return True
     for ignored_nick in ignored_nicks:
         if re.search(re.compile(ignored_nick, re.IGNORECASE), nick):
             return True
@@ -521,7 +523,7 @@ def give_highfive(phenny, input):
         DBSession.flush()
         DBSession.commit()
         points = DBSession.query(Point).join(
-            User
+            User, Point.user_id == User.id
         ).filter(
             Point.type == "high five"
         ).filter(User.nick == input.nick).all()
@@ -555,14 +557,27 @@ give_highfive.thread = False
 
 
 @smart_ignore
-def give_user_point(phenny, input):
+def user_point(phenny, input):
     banned_types = ['respect', 'high five']
-    matches = re.search(give_user_point.rule, input.group())
+    matches = re.search(user_point.rule, input.group())
     if not matches:
         return
-    target = matches.groups()[0]
-    quantity = matches.groups()[1]
-    point_type = matches.groups()[2].lower()
+
+    modifier = 1
+    if matches.groups()[0] == "give":
+        regex = r'^!give ([a-zA-Z0-9-_]+) (\w+|-?\d+) ([a-zA-Z0-9,\- ]+)'
+        matches = re.search(regex, input.group())
+        target = matches.groups()[0]
+        quantity = matches.groups()[1]
+        point_type = matches.groups()[2].lower()
+    else:
+        regex = r'^!take (\w+|-?\d+) ([a-zA-Z0-9,\- ]+) from ([a-zA-Z0-9-_]+)'
+        matches = re.search(regex, input.group())
+        target = matches.groups()[2]
+        quantity = matches.groups()[0]
+        point_type = matches.groups()[1].lower()
+        modifier = -1
+
     if quantity.lower() in ["a", "an", "another", "one"]:
         quantity = 1
     elif quantity.lower() in ["some"]:
@@ -582,6 +597,7 @@ def give_user_point(phenny, input):
     if abs(quantity) > 10:
         phenny.say("Woah there buddy, slow down.")
         return
+    quantity *= modifier
     awarded_by = DBSession.query(User).filter(User.nick.ilike("%s%%" % input.nick)).first()
     if target.lower() in ["everyone", "everybody"]:
         start_time = get_current_time() - datetime.timedelta(hours=4)
@@ -623,71 +639,9 @@ def give_user_point(phenny, input):
                 phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
             else:
                 phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
-give_user_point.rule = r'^!give ([a-zA-Z0-9-_]+) (\w+|-?\d+) ([a-zA-Z0-9,\- ]+)'
-give_user_point.priority = 'medium'
-give_user_point.thread = False
-
-
-@smart_ignore
-def take_user_point(phenny, input):
-    banned_types = ['respect', 'high five']
-    matches = re.search(take_user_point.rule, input.group())
-    if not matches:
-        return
-    target = matches.groups()[2]
-    quantity = matches.groups()[0]
-    point_type = matches.groups()[1].lower()
-    if quantity.lower() in ["a", "an", "another", "one"]:
-        quantity = 1
-    elif quantity.lower() in ["some"]:
-        quantity = random.choice(range(2,10))
-    else:
-        try:
-            quantity = int(quantity)
-        except Exception:
-            return
-    quantity *= -1
-    if quantity > 1:
-        if point_type.endswith("ies"):
-            point_type = point_type[:-3] + "y"
-        elif point_type.endswith("es"):
-            point_type = point_type[:-2]
-        elif point_type.endswith("s"):
-            point_type = point_type[:-1]
-    awarded_by = DBSession.query(User).filter(User.nick.ilike("%s%%" % input.nick)).first()
-    if abs(quantity) > 10:
-        phenny.say("Woah there buddy, slow down.")
-        return
-    if not(target == input.nick) and point_type not in banned_types:
-        user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
-        if user_id:
-            DBSession.add(Point(point_type, user_id.id, awarded_by.id, quantity))
-            DBSession.flush()
-            DBSession.commit()
-            points = DBSession.query(Point).join(
-                User, Point.user_id == User.id
-            ).filter(
-                Point.type == point_type
-            ).filter(User.nick.ilike("%s%%" % target)).all()
-            user_points = 0
-            for point in points:
-                user_points += point.value
-            if not(user_points == 1):
-                if point_type.endswith("es"):
-                    pass
-                elif point_type.endswith("y"):
-                    point_type = point_type[:-1] + "ies"
-                elif point_type.endswith("s") or point_type.endswith("x"):
-                    point_type += "es"
-                else:
-                    point_type += "s"
-            if not user_points == 1:
-                phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
-            else:
-                phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
-take_user_point.rule = r'^!take (\w+|-?\d+) ([a-zA-Z0-9,\- ]+) from ([a-zA-Z0-9-_]+)'
-take_user_point.priority = 'medium'
-take_user_point.thread = False
+user_point.rule = r'^!(give|take) (.+)'
+user_point.priority = 'medium'
+user_point.thread = False
 
 
 @smart_ignore
