@@ -71,7 +71,7 @@ def main():
     valid_methods = [
         quote.logger,
         quote.grab,
-        quote.add_point,
+        quote.give_respect,
         #quote.fetch_quote,
         #quote.random_user_quote,
         #quote.no_context,
@@ -81,7 +81,6 @@ def main():
         #quote.points,
         quote.give_user_point,
         quote.take_user_point,
-        quote.remove_point,
         #quote.trending,
         #quote.unsad,
         #quote.sandwich,

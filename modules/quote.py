@@ -92,20 +92,28 @@ class Quote(Base):
 class Point(Base):
     __tablename__ = 'point'
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"))
-    awarded_by_id = Column(Integer, ForeignKey("user.id"))
+    user_id = Column(Integer, ForeignKey(User.id))
+    awarded_by_id = Column(Integer, ForeignKey(User.id))
     type = Column(String)
     created_at = Column(DateTime)
     value = Column(Integer)
 
-    user = relationship("User", backref="points", foreign_keys=[user_id])
-    awarded_by = relationship("User", backref="awarded_points", foreign_keys=[awarded_by_id])
+    user = relationship("User", backref="points", foreign_keys=user_id)
+    awarded_by = relationship("User", backref="awarded_points", foreign_keys=awarded_by_id)
 
-    def __init__(self, type, user_id, awarded_by=None, value=1):
+    def __init__(self, type, user_id, awarded_by_id, value=1):
+        start_time = get_current_time() - datetime.timedelta(minutes=10)
+        user = DBSession.query(User).filter(
+            User.id == user_id
+        ).first()
+        if sum([x.value for x in user.points if x.created_at > start_time]) > 20:
+            value = 0
+        if sum([x.value for x in user.awarded_points if x.created_at > start_time]) > 20:
+            value = 0
         self.created_at = get_current_time()
         self.type = type
         self.user_id = user_id
-        self.awarded_by = awarded_by
+        self.awarded_by_id = awarded_by_id
         self.value = value
 
 
@@ -591,11 +599,11 @@ def give_user_point(phenny, input):
     elif not(target == input.nick) and point_type not in banned_types:
         user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
         if user_id:
-            DBSession.add(Point(point_type, x.id, awarded_by.id, quantity))
+            DBSession.add(Point(point_type, user_id.id, awarded_by.id, quantity))
             DBSession.flush()
             DBSession.commit()
             points = DBSession.query(Point).join(
-                User
+                User, Point.user_id == User.id
             ).filter(
                 Point.type == point_type
             ).filter(User.nick.ilike("%s%%" % target)).all()
@@ -657,7 +665,7 @@ def take_user_point(phenny, input):
             DBSession.flush()
             DBSession.commit()
             points = DBSession.query(Point).join(
-                User
+                User, Point.user_id == User.id
             ).filter(
                 Point.type == point_type
             ).filter(User.nick.ilike("%s%%" % target)).all()
@@ -700,7 +708,7 @@ def give_respect(phenny, input):
             DBSession.flush()
             DBSession.commit()
             points = DBSession.query(Point).join(
-                User
+                User, Point.user_id == User.id
             ).filter(
                 Point.type == "respect"
             ).filter(User.nick.ilike("%s%%" % target)).all()
@@ -708,7 +716,7 @@ def give_respect(phenny, input):
             for point in points:
                 user_points += point.value
             phenny.say("%s now has %d respect." % (user_id.nick, user_points))
-give_respect.rule = r".*([a-zA-Z0-9_]+)(\+\+|--)"
+give_respect.rule = r"([a-zA-Z0-9_]+)(\+\+|--)"
 give_respect.priority = 'medium'
 give_respect.thread = False
 
