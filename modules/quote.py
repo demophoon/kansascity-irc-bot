@@ -93,16 +93,19 @@ class Point(Base):
     __tablename__ = 'point'
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("user.id"))
+    awarded_by_id = Column(Integer, ForeignKey("user.id"))
     type = Column(String)
     created_at = Column(DateTime)
     value = Column(Integer)
 
-    user = relationship("User", backref="points")
+    user = relationship("User", backref="points", foreign_keys=[user_id])
+    awarded_by = relationship("User", backref="awarded_points", foreign_keys=[awarded_by_id])
 
-    def __init__(self, type, user_id, value=1):
+    def __init__(self, type, user_id, awarded_by=None, value=1):
         self.created_at = get_current_time()
         self.type = type
         self.user_id = user_id
+        self.awarded_by = awarded_by
         self.value = value
 
 
@@ -504,8 +507,9 @@ def give_highfive(phenny, input):
         return
 
     user_id = DBSession.query(User).filter(User.nick == input.nick).first()
+    awarded_by = user_id
     if user_id:
-        DBSession.add(Point("high five", user_id.id, current_high_five['value']))
+        DBSession.add(Point("high five", user_id.id, awarded_by.id, current_high_five['value']))
         DBSession.flush()
         DBSession.commit()
         points = DBSession.query(Point).join(
@@ -570,9 +574,10 @@ def give_user_point(phenny, input):
     if abs(quantity) > 10:
         phenny.say("Woah there buddy, slow down.")
         return
+    awarded_by = DBSession.query(User).filter(User.nick.ilike("%s%%" % input.nick)).first()
     if target.lower() in ["everyone", "everybody"]:
         start_time = get_current_time() - datetime.timedelta(hours=4)
-        points = [Point(point_type, x.id, quantity) for x in DBSession.query(
+        points = [Point(point_type, x.id, awarded_by.id, quantity) for x in DBSession.query(
             User
         ).join(Message).join(Room).filter(
             Room.name == input.sender
@@ -586,7 +591,7 @@ def give_user_point(phenny, input):
     elif not(target == input.nick) and point_type not in banned_types:
         user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
         if user_id:
-            DBSession.add(Point(point_type, user_id.id, quantity))
+            DBSession.add(Point(point_type, x.id, awarded_by.id, quantity))
             DBSession.flush()
             DBSession.commit()
             points = DBSession.query(Point).join(
@@ -641,13 +646,14 @@ def take_user_point(phenny, input):
             point_type = point_type[:-2]
         elif point_type.endswith("s"):
             point_type = point_type[:-1]
+    awarded_by = DBSession.query(User).filter(User.nick.ilike("%s%%" % input.nick)).first()
     if abs(quantity) > 10:
         phenny.say("Woah there buddy, slow down.")
         return
     if not(target == input.nick) and point_type not in banned_types:
         user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
         if user_id:
-            DBSession.add(Point(point_type, user_id.id, quantity))
+            DBSession.add(Point(point_type, user_id.id, awarded_by.id, quantity))
             DBSession.flush()
             DBSession.commit()
             points = DBSession.query(Point).join(
