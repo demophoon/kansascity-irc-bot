@@ -4,6 +4,28 @@ import re
 
 get_data_url = "http://gdata.youtube.com/feeds/api/videos/%s?v=2&alt=json"
 
+def smart_ignore(fn):
+    def callable(phenny, input):
+        if check_ignore(phenny, input):
+            return None
+        if input.sender in limited_channels:
+            if fn in [x._original for x in limited_channels[input.sender]['ignored']]:
+                return None
+        return fn(phenny, input)
+    callable._original = fn
+    return callable
+
+
+def check_ignore(phenny, input):
+    ignored_nicks = [
+        ".*bot",
+    ]
+    nick = input.nick
+    if not input.sender.startswith("#"):
+        return True
+    for ignored_nick in ignored_nicks:
+        if re.search(re.compile(ignored_nick, re.IGNORECASE), nick):
+            return True
 
 def get_duration(seconds):
     if seconds < 60:
@@ -31,6 +53,7 @@ def get_video_information(videoid):
         return False
 
 
+@smart_ignore
 def yt_context(phenny, input):
     matches = re.match(yt_context.rule, input.group())
     target = matches.groups()[0]
@@ -48,3 +71,11 @@ def yt_context(phenny, input):
 
 yt_context.rule = r'.*https?://.*?youtu[a-zA-Z\./=\?]*([a-zA-Z0-9_-]{11})(&list=)?'
 yt_context.priority = 'medium'
+
+limited_channels = {
+    "#reddit-stlouis": {
+        "ignored": [
+            yt_context
+        ]
+    },
+}

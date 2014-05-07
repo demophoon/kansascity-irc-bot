@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-ignored_nicks = [
-    ".*bot",
-]
-
 import datetime
 import random
 import re
@@ -35,6 +31,9 @@ def get_current_time():
 
 
 def check_ignore(phenny, input):
+    ignored_nicks = [
+        ".*bot",
+    ]
     nick = input.nick
     if not input.sender.startswith("#"):
         return True
@@ -47,7 +46,11 @@ def smart_ignore(fn):
     def callable(phenny, input):
         if check_ignore(phenny, input):
             return None
+        if input.sender in limited_channels:
+            if fn in [x._original for x in limited_channels[input.sender]['ignored']]:
+                return None
         return fn(phenny, input)
+    callable._original = fn
     return callable
 
 
@@ -218,6 +221,8 @@ def logger(phenny, input):
     DBSession.flush()
     DBSession.commit()
 
+    if input.sender in limited_channels:
+        return
     if u"┻━" in input and u"━┻" in input:
         table_length = input.count(u"━")
         table_str = u""
@@ -325,13 +330,25 @@ random_quote.thread = False
 
 @smart_ignore
 def no_context(phenny, input):
-    msg = DBSession.query(Message).join(Room).filter(
-        Room.name == input.sender
-    ).order_by(
+    matches = re.search(no_context.rule, input.group())
+    if matches:
+        target = matches.groups()[0]
+        msg = DBSession.query(Message).join(Room).filter(
+            Room.name == input.sender
+        ).filter(
+            Message.body.ilike("%%%s%%" % target)
+        )
+    else:
+        msg = DBSession.query(Message).join(Room).filter(
+            Room.name == input.sender
+        )
+    msg = msg.filter(not_(Message.body.like("!%")))
+    msg = msg.order_by(
         sa.func.random()
     ).first()
-    phenny.say(msg.body)
-no_context.rule = r'^!nocontext$'
+    if msg:
+        phenny.say(msg.body)
+no_context.rule = r'^!nocontext\s?(.*)'
 no_context.priority = 'medium'
 no_context.thread = False
 
@@ -372,11 +389,18 @@ def fetch_quote(phenny, input):
     if not matches:
         return
     target = matches.groups()[0]
+    print target
     quote = DBSession.query(Quote).join(
         Message
-    ).join(User).filter(
-        Quote.id == int(target)
-    ).first()
+    ).join(User)
+    if target.isdigit():
+        quote = quote.filter(
+            Quote.id == int(target)
+        ).first()
+    else:
+        quote = quote.filter(
+            Message.body.ilike("%%%s%%" % target)
+        ).first()
     if quote:
         phenny.say("Quote #%d grabbed by %s: <%s> %s" % (
             quote.id,
@@ -386,7 +410,7 @@ def fetch_quote(phenny, input):
         ))
     else:
         phenny.say("Quote does not exist.")
-fetch_quote.rule = r'^!quote (\d+)$'
+fetch_quote.rule = r'^!quote (.*)'
 fetch_quote.priority = 'medium'
 fetch_quote.thread = False
 
@@ -414,6 +438,25 @@ def points(phenny, input):
     if not matches:
         return
     target = matches.groups()[1]
+    if target.lower() in ["everyone", "everybody"]:
+        all_points = sorted(DBSession.query(
+            sa.func.sum(Point.value),
+            Point.type,
+            User.nick,
+        ).join(User, Point.user_id == User.id).group_by(
+            User.nick
+        ).group_by(
+            Point.type
+        ).order_by(Point.value).all(), reverse=True)[:10]
+        phenny.say("Top 10 for %s: %s" % (
+            "Everybody",
+            ", ".join(["%(nick)s (%(points)d: %(type)s)" % {
+                "nick": x[2],
+                "points": x[0],
+                "type": x[1],
+            } for x in all_points])
+        ))
+        return
     user = DBSession.query(User).filter(
         User.nick.ilike("%s%%" % target)
     ).first()
@@ -471,7 +514,7 @@ def last_active(phenny, input):
         Room.name == input.sender
     ).filter(
         User.nick.ilike("%s%%" % target)
-    ).first()
+    ).order_by(User.nick.asc()).first()
     if not user:
         return
     if user.nick == input.nick:
@@ -558,29 +601,35 @@ give_highfive.thread = False
 
 @smart_ignore
 def user_point(phenny, input):
-    banned_types = ['respect', 'high five']
     matches = re.search(user_point.rule, input.group())
-    if not matches:
-        return
-
     modifier = 1
+    if not matches or not matches.groups():
+        return
     if matches.groups()[0] == "give":
         regex = r'^!give ([a-zA-Z0-9-_]+) (\w+|-?\d+) ([a-zA-Z0-9,\- ]+)'
         matches = re.search(regex, input.group())
+        if not matches:
+            return
         target = matches.groups()[0]
         quantity = matches.groups()[1]
         point_type = matches.groups()[2].lower()
     else:
         regex = r'^!take (\w+|-?\d+) ([a-zA-Z0-9,\- ]+) from ([a-zA-Z0-9-_]+)'
         matches = re.search(regex, input.group())
+        if not matches:
+            return
         target = matches.groups()[2]
         quantity = matches.groups()[0]
         point_type = matches.groups()[1].lower()
         modifier = -1
 
+    banned_types = ['respect', 'high five']
+    if point_type in banned_types:
+        return
+
     if quantity.lower() in ["a", "an", "another", "one"]:
         quantity = 1
-    elif quantity.lower() in ["some"]:
+    elif quantity.lower() in ["some", "many", "lots of", "lotsa"]:
         quantity = random.choice(range(2,10))
     else:
         try:
@@ -800,3 +849,19 @@ def op_giver(phenny, input):
         phenny.write(['MODE', input.sender, "+o", target])
 op_giver.rule = r'^!op ([a-zA-Z0-9-_]+)$'
 op_giver.priority = 'medium'
+
+
+limited_channels = {
+    "#reddit-stlouis": {
+        "ignored": [
+            grab,
+            touch,
+            your_mom,
+            command_help,
+            fetch_quote,
+            random_user_quote,
+            random_quote,
+            trending,
+        ]
+    },
+}

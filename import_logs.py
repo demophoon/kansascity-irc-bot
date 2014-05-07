@@ -48,6 +48,7 @@ def main():
         ("/home/britt/.irssi/logs/freenode/#r_kansascity.log", "#r/kansascity"),
         ("/home/britt/.irssi/logs/freenode/##kcshoptalk.log", "##kcshoptalk"),
         ("/home/britt/.irssi/logs/freenode/##brittslittlesliceofheaven.log", "##brittslittlesliceofheaven"),
+        ("/home/britt/.irssi/logs/freenode/#reddit-stlouis.log", "#reddit-stlouis"),
     ]
 
     month_translation = {
