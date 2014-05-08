@@ -1,6 +1,7 @@
 import urllib
 import json
 import re
+from urlparse import urlparse, parse_qs
 
 get_data_url = "http://gdata.youtube.com/feeds/api/videos/%s?v=2&alt=json"
 
@@ -17,6 +18,8 @@ def smart_ignore(fn):
 
 
 def check_ignore(phenny, input):
+    if input.owner:
+        return False
     ignored_nicks = [
         ".*bot",
     ]
@@ -31,12 +34,14 @@ def get_duration(seconds):
     if seconds < 60:
         return ":%s" % "{0:02d}".format(seconds)
     elif seconds > 61 and seconds < 3600:
-        return "%d%s" % (seconds / 60, get_duration(seconds % 60))
+        return "%s%s" % ("{0:02d}".format(seconds / 60), get_duration(seconds % 60))
     elif seconds > 3601:
         return "%d:%s" % (seconds / 3600, get_duration(seconds % 3600))
 
 
 def get_video_information(videoid):
+    if not(len(videoid) == 11):
+        return False
     yturl = get_data_url % (videoid)
     try:
         vid = json.loads(urllib.urlopen(yturl).read())
@@ -57,7 +62,10 @@ def get_video_information(videoid):
 def yt_context(phenny, input):
     matches = re.match(yt_context.rule, input.group())
     target = matches.groups()[0]
-    yt = get_video_information(target)
+    video_id = parse_qs(urlparse(target).query).get("v")
+    if not video_id:
+        video_id = [urlparse(target).path[1:]]
+    yt = get_video_information(video_id[0])
     if yt:
         phenny.say("YouTube: \"%s\" (%s) by %s - %s" % (
             yt['title'],
@@ -69,7 +77,7 @@ def yt_context(phenny, input):
 # https://www.youtube.com/watch?v=ygr5AHufBN4
 # https://youtu.be/ygr5AHufBN4
 
-yt_context.rule = r'.*https?://.*?youtu[a-zA-Z\./=\?]*([a-zA-Z0-9_-]{11})(&list=)?'
+yt_context.rule = r'.*(https?://.*?youtu.*)\s?'
 yt_context.priority = 'medium'
 
 limited_channels = {

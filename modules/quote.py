@@ -31,6 +31,8 @@ def get_current_time():
 
 
 def check_ignore(phenny, input):
+    if input.owner:
+        return False
     ignored_nicks = [
         ".*bot",
     ]
@@ -389,7 +391,6 @@ def fetch_quote(phenny, input):
     if not matches:
         return
     target = matches.groups()[0]
-    print target
     quote = DBSession.query(Quote).join(
         Message
     ).join(User)
@@ -627,9 +628,10 @@ def user_point(phenny, input):
     if point_type in banned_types:
         return
 
+    doge = quantity in ["many", "much", "such", "wow"]
     if quantity.lower() in ["a", "an", "another", "one"]:
         quantity = 1
-    elif quantity.lower() in ["some", "many", "lots of", "lotsa"]:
+    elif quantity.lower() in ["some", "many", "much", "wow", "such", "lotsa"]:
         quantity = random.choice(range(2,10))
     else:
         try:
@@ -684,10 +686,16 @@ def user_point(phenny, input):
                     point_type += "es"
                 else:
                     point_type += "s"
-            if not user_points == 1:
-                phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
-            else:
-                phenny.say("%s has %d %s." % (user_id.nick, user_points, point_type))
+            message = "%s has %d %s." % (user_id.nick, user_points, point_type)
+            if doge:
+                message += random.choice([
+                    " such %s." % point_type,
+                    " so %s." % point_type,
+                    " wow.",
+                    " so amaze.",
+                    " many %s." % point_type,
+                ])
+            phenny.say(message)
 user_point.rule = r'^!(give|take) (.+)'
 user_point.priority = 'medium'
 user_point.thread = False
@@ -726,6 +734,10 @@ give_respect.thread = False
 
 @smart_ignore
 def trending(phenny, input):
+    matches = re.search(trending.rule, input.group())
+    target = 4
+    if matches.groups()[0]:
+        target = int(matches.groups()[0])
     ignore_list = [
         "the", "of", "and", "a", "to", "in", "is", "you", "that",
         "it", "he", "was", "for", "on", "are", "as", "with", "his",
@@ -749,7 +761,7 @@ def trending(phenny, input):
     ignore_list += [x.nick.lower() for x in DBSession.query(User).all()]
     ignore_list += ["%s:" % x.nick.lower() for x in DBSession.query(User).all()]
     ignore_list += ["%s," % x.nick.lower() for x in DBSession.query(User).all()]
-    start_time = get_current_time() - datetime.timedelta(hours=4)
+    start_time = get_current_time() - datetime.timedelta(hours=target)
     words = [
         word for word in
         ' '.join([x.body for x in DBSession.query(Message).join(Room).filter(
@@ -761,13 +773,19 @@ def trending(phenny, input):
 
     most_common = collections.Counter(words).most_common(10)
 
+    hours = "hours"
+    if target == 1:
+        hours = "hour"
     phenny.say(
-        "Trending over last 4 hours: %s " %
-        ', '.join([
-            "%s (%d)" % word for word in most_common
-        ])
+        "Trending over last %d %s: %s " % (
+            target,
+            hours,
+            ', '.join([
+                "%s (%d)" % word for word in most_common
+            ]),
+        )
     )
-trending.rule = r"^!trending"
+trending.rule = r"^!trending\s?(\d{2})?"
 trending.priority = 'medium'
 trending.thread = False
 
@@ -846,8 +864,8 @@ def op_giver(phenny, input):
         return
     target = matches.groups()[0]
     if input.owner:
-        phenny.write(['MODE', input.sender, "+o", target])
-op_giver.rule = r'^!op ([a-zA-Z0-9-_]+)$'
+        phenny.write(['MODE', "##brittslittlesliceofheaven", "+o", target])
+op_giver.rule = r'^!op ([a-zA-Z0-9\-_]+)$'
 op_giver.priority = 'medium'
 
 
