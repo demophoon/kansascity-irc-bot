@@ -263,8 +263,8 @@ def grab(phenny, input):
     matches = re.search(grab.rule, input.group())
     if not matches:
         return
-    target = matches.groups()[0]
-    offset = matches.groups()[1] or 0
+    target = matches.groups()[1]
+    offset = matches.groups()[2] or 0
     if target == input.nick:
         phenny.say(random.choice(grab_yourself_warnings))
     elif target == phenny.nick:
@@ -291,7 +291,7 @@ def grab(phenny, input):
             DBSession.flush()
             DBSession.commit()
             phenny.say("Quote %d added" % new_quote.id)
-grab.rule = r'^!grab ([a-zA-Z0-9-_]+)\s*-?([0-9]+)?'
+grab.rule = r'^(!|\x01ACTION )grabs? ([a-zA-Z0-9-_]+)\s*-?([0-9]+)?'
 grab.priority = 'medium'
 grab.thread = False
 
@@ -301,10 +301,10 @@ def touch(phenny, input):
     matches = re.search(touch.rule, input.group())
     if not matches:
         return
-    target = matches.groups()[0]
-    target = "lgebaur"
+    target = matches.groups()[2]
+    target = random.choice(["lgebaur", "timfreund's monitor"])
     phenny.msg(input.sender, action("touches %s with a moist foot." % target))
-touch.rule = r'^!touch ([a-zA-Z0-9-_]+)'
+touch.rule = r'^(!|\x01ACTION )touch(es)? ([a-zA-Z0-9-_]+)'
 touch.priority = 'medium'
 
 
@@ -516,16 +516,23 @@ def last_active(phenny, input):
     ).filter(
         User.nick.ilike("%s%%" % target)
     ).order_by(User.nick.asc()).first()
+    message = DBSession.query(Message).join(User).join(
+        Room
+    ).filter(
+        Room.name == input.sender
+    ).filter(
+        User.nick.ilike("%s%%" % target)
+    ).order_by(Message.created_at.desc()).first()
     if not user:
         return
     if user.nick == input.nick:
         phenny.say("Stahp Et >:(")
         return
-    delta = get_current_time() - user.messages[-1].created_at
+    delta = get_current_time() - message.created_at
     phenny.say("User %s last message was %sago: %s" % (
         user.nick,
         duration(delta),
-        user.messages[-1].body
+        message.body,
     ))
 last_active.rule = r'^!(active|last) ([a-zA-Z0-9-_]+)'
 last_active.priority = 'medium'
@@ -606,8 +613,8 @@ def user_point(phenny, input):
     modifier = 1
     if not matches or not matches.groups():
         return
-    if matches.groups()[0] == "give":
-        regex = r'^!give ([a-zA-Z0-9-_]+) (\w+|-?\d+) ([a-zA-Z0-9,\- ]+)'
+    if matches.groups()[1] == "give":
+        regex = r'gives? ([a-zA-Z0-9-_]+) (\w+|-?\d+) ([a-zA-Z0-9,\- ]+)'
         matches = re.search(regex, input.group())
         if not matches:
             return
@@ -615,7 +622,7 @@ def user_point(phenny, input):
         quantity = matches.groups()[1]
         point_type = matches.groups()[2].lower()
     else:
-        regex = r'^!take (\w+|-?\d+) ([a-zA-Z0-9,\- ]+) from ([a-zA-Z0-9-_]+)'
+        regex = r'take (\w+|-?\d+) ([a-zA-Z0-9,\- ]+) from ([a-zA-Z0-9-_]+)'
         matches = re.search(regex, input.group())
         if not matches:
             return
@@ -628,10 +635,10 @@ def user_point(phenny, input):
     if point_type in banned_types:
         return
 
-    doge = quantity in ["many", "much", "such", "wow"]
-    if quantity.lower() in ["a", "an", "another", "one"]:
+    doge = quantity in ["many", "so", "much", "such", "wow"]
+    if quantity.lower() in ["a", "an", "another", "one", "the"]:
         quantity = 1
-    elif quantity.lower() in ["some", "many", "much", "wow", "such", "lotsa"]:
+    elif quantity.lower() in ["some", "many", "much", "wow", "so", "such", "lotsa"]:
         quantity = random.choice(range(2,10))
     else:
         try:
@@ -696,7 +703,7 @@ def user_point(phenny, input):
                     " many %s." % point_type,
                 ])
             phenny.say(message)
-user_point.rule = r'^!(give|take) (.+)'
+user_point.rule = r'^(!|\x01ACTION )(give|take)s? (.+)'
 user_point.priority = 'medium'
 user_point.thread = False
 
@@ -706,8 +713,8 @@ def give_respect(phenny, input):
     matches = re.search(give_respect.rule, input.group())
     if not matches:
         return
-    target = matches.groups()[0]
-    if matches.groups()[1] == "++":
+    target = matches.groups()[1]
+    if matches.groups()[2] == "++":
         quantity = 1
     else:
         quantity = -1
@@ -727,7 +734,7 @@ def give_respect(phenny, input):
             for point in points:
                 user_points += point.value
             phenny.say("%s now has %d respect." % (user_id.nick, user_points))
-give_respect.rule = r"([a-zA-Z0-9_]+)(\+\+|--)"
+give_respect.rule = r"(^|.* )([a-zA-Z0-9_]+)(\+\+|--)"
 give_respect.priority = 'medium'
 give_respect.thread = False
 
@@ -738,6 +745,10 @@ def trending(phenny, input):
     target = 4
     if matches.groups()[0]:
         target = int(matches.groups()[0])
+        if target > 99:
+            target = 99
+        if target < 0:
+            target = 0
     ignore_list = [
         "the", "of", "and", "a", "to", "in", "is", "you", "that",
         "it", "he", "was", "for", "on", "are", "as", "with", "his",
@@ -752,8 +763,9 @@ def trending(phenny, input):
         "than", "first", "water", "been", "call", "who", "oil", "its",
         "now", "find", "long", "down", "day", "did", "get", "come",
         "made", "may", "part", "it's", "", "!grab", "!nocontext",
-        "!quote", "!random", "i", "me", "am", "just", "!trending",
-        "lol", "!give", "!wc", "\x01action", "!points",
+        "!quote", "!random", "i've", "me", "am", "just", "!trending",
+        "lol", "!give", "!wc", "\x01action", "!points", "i'm", "oh",
+        "that's", "thats",
     ]
     ignore_list += [phenny.nick.lower(),
                     "%s:" % phenny.nick.lower(),
@@ -785,7 +797,7 @@ def trending(phenny, input):
             ]),
         )
     )
-trending.rule = r"^!trending\s?(\d{2})?"
+trending.rule = r"^!trending\s?(\d+)?"
 trending.priority = 'medium'
 trending.thread = False
 
@@ -817,8 +829,15 @@ sandwich.priority = 'medium'
 @smart_ignore
 def rimshot(phenny, input):
     phenny.say("Buh dum tsh")
-rimshot.rule = "^!rimshot"
+rimshot.rule = "^(!|\x01ACTION )rimshot"
 rimshot.priority = 'medium'
+
+
+@smart_ignore
+def sadtuba(phenny, input):
+    phenny.say("http://www.sadtuba.com/")
+sadtuba.rule = "^(!|\x01ACTION )(sadtuba|sadtrombone)"
+sadtuba.priority = 'medium'
 
 
 @smart_ignore
@@ -843,7 +862,22 @@ pod_bay_doors.priority = 'medium'
 
 
 @smart_ignore
+def pats(phenny, input):
+    phenny.say(random.choice([
+        "\x01ACTION giggles and smiles",
+        "\x01ACTION smiles really big",
+        "\x01ACTION grins a little bit",
+        "\x01ACTION grins real big",
+        "\x01ACTION gives %s a hug" % input.nick,
+    ]))
+pats.rule = "\x01ACTION pats demophoon on the head"
+pats.priority = 'medium'
+
+
+@smart_ignore
 def your_mom(phenny, input):
+    if "demophoon" in input.lower():
+        return
     matches = re.search(your_mom.rule, input.group())
     if not matches:
         return
@@ -851,9 +885,11 @@ def your_mom(phenny, input):
         matches.groups()[0],
         matches.groups()[1],
     )
-    if random.choice(range(7)) == 0:
+    if len(msg.split(" ")) > 20:
+        return
+    if random.choice(range(50)) == 0:
         phenny.say(msg)
-your_mom.rule = r"^.* (is|has|used to be) (\w+)\W?$"
+your_mom.rule = r"^.* (is|has|used to be) (.+)\W?$"
 your_mom.priority = 'medium'
 
 
@@ -862,11 +898,36 @@ def op_giver(phenny, input):
     matches = re.search(op_giver.rule, input.group())
     if not matches:
         return
-    target = matches.groups()[0]
+    target = matches.groups()[1]
     if input.owner:
         phenny.write(['MODE', "##brittslittlesliceofheaven", "+o", target])
-op_giver.rule = r'^!op ([a-zA-Z0-9\-_]+)$'
+op_giver.rule = r'^(!|\x01ACTION )op ([a-zA-Z0-9\-_]+)$'
 op_giver.priority = 'medium'
+
+
+@smart_ignore
+def random_topic(phenny, input):
+    matches = re.search(random_topic.rule, input.group())
+    if not matches:
+        return
+    target = matches.groups()[1]
+
+    quote = DBSession.query(Quote).join(
+        Message
+    ).join(User).join(Room).filter(
+        Room.name == input.sender
+    ).order_by(
+        sa.func.random()
+    ).first()
+    if not quote:
+        return
+    topic = "<%s> %s" % (
+        quote.message.user.nick,
+        quote.message.body
+    )
+    phenny.write(['TOPIC', input.sender], topic)
+random_topic.rule = r'^(!)topic ?(.*)?$'
+random_topic.priority = 'medium'
 
 
 limited_channels = {
