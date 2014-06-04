@@ -124,6 +124,21 @@ class Point(Base):
         self.value = value
 
 
+class Tag(Base):
+    __tablename__ = 'tag'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey(User.id))
+    tagged_by_id = Column(Integer, ForeignKey(User.id))
+    created_at = Column(DateTime)
+    tagged = Column(Integer)
+
+    user = relationship("User", backref="tags", foreign_keys=user_id)
+    awarded_by = relationship("User", backref="tagged", foreign_keys=tagged_by_id)
+
+    def __init__(self):
+        self.created_at = get_current_time()
+
+
 class Audit(Base):
     __tablename__ = 'audit'
     id = Column(Integer, primary_key=True)
@@ -422,8 +437,15 @@ def word_count(phenny, input):
     if not matches:
         return
     target = matches.groups()[0]
-    wc = " ".join([x.body for x in DBSession.query(Message).join(
-        Room).filter(Room.name == input.sender).all()]).lower().count(target.lower())
+    wc = " ".join([x.body for x in DBSession.query(
+        Message
+    ).join(
+        Room
+    ).filter(
+        not_(Message.body.ilike("!%"))
+    ).filter(
+        Room.name == input.sender
+    ).all()]).lower().count(target.lower())
     phenny.say("%s: Word count for %s: %d" % (
         input.nick,
         target,
@@ -640,6 +662,10 @@ def user_point(phenny, input):
         quantity = 1
     elif quantity.lower() in ["some", "many", "much", "wow", "so", "such", "lotsa"]:
         quantity = random.choice(range(2,10))
+    elif quantity.lower() in ["all"]:
+        if point_type.split(" ")[0] == "the":
+            quantity = 10
+            point_type = " ".join(point_type.split(" ")[1:])
     else:
         try:
             quantity = int(quantity)
@@ -916,12 +942,16 @@ def random_topic(phenny, input):
         Message
     ).join(User).join(Room).filter(
         Room.name == input.sender
-    ).order_by(
+    )
+    if target:
+        quote = quote.filter(Message.body.ilike("%%%s%%" % target))
+    quote = quote.order_by(
         sa.func.random()
     ).first()
     if not quote:
         return
-    topic = "<%s> %s" % (
+    topic = "Welcome to %s | <%s> %s" % (
+        input.sender,
         quote.message.user.nick,
         quote.message.body
     )
@@ -941,6 +971,11 @@ limited_channels = {
             random_user_quote,
             random_quote,
             trending,
+        ]
+    },
+    "#r/kansascity": {
+        "ignored": [
+            touch,
         ]
     },
 }
