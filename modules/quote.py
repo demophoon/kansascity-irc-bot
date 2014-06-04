@@ -312,6 +312,44 @@ grab.thread = False
 
 
 @smart_ignore
+def tag(phenny, input):
+    matches = re.search(grab.rule, input.group())
+    if not matches:
+        return
+    target = matches.groups()[1]
+    offset = matches.groups()[2] or 0
+    if target == input.nick:
+        phenny.say(random.choice(grab_yourself_warnings))
+    elif target == phenny.nick:
+        phenny.say("I cannot let you do that.")
+    else:
+        message = DBSession.query(Message).join(User).join(Room).filter(
+            User.nick.ilike("%s%%" % target)
+        ).filter(
+            Room.name == input.sender
+        ).filter(
+            not_(Message.body.like("!%"))
+        ).order_by(Message.created_at.desc()).all()
+        if not message:
+            phenny.say("I don't remember what %s said. :(" % target)
+        else:
+            message = message[int(offset)]
+            grabber_user = DBSession.query(User).filter(
+                User.nick.ilike("%s%%" % input.nick)
+            ).first()
+            new_quote = Quote()
+            new_quote.message_id = message.id
+            new_quote.grabbed_by = grabber_user.id
+            DBSession.add(new_quote)
+            DBSession.flush()
+            DBSession.commit()
+            phenny.say("Quote %d added" % new_quote.id)
+grab.rule = r'^(!|\x01ACTION )grabs? ([a-zA-Z0-9-_]+)\s*-?([0-9]+)?'
+grab.priority = 'medium'
+grab.thread = False
+
+
+@smart_ignore
 def touch(phenny, input):
     matches = re.search(touch.rule, input.group())
     if not matches:
@@ -410,7 +448,7 @@ def fetch_quote(phenny, input):
         Message
     ).join(User)
     if target.isdigit():
-        quote = quote.filter(
+        quote = DBSession.query(Quote).filter(
             Quote.id == int(target)
         ).first()
     else:
@@ -938,13 +976,18 @@ def random_topic(phenny, input):
         return
     target = matches.groups()[1]
 
-    quote = DBSession.query(Quote).join(
-        Message
-    ).join(User).join(Room).filter(
-        Room.name == input.sender
-    )
-    if target:
-        quote = quote.filter(Message.body.ilike("%%%s%%" % target))
+    if target.isdigit():
+        quote = DBSession.query(Quote).filter(
+            Quote.id == int(target)
+        )
+    else:
+        quote = DBSession.query(Quote).join(
+            Message
+        ).join(User).join(Room).filter(
+            Room.name == input.sender
+        )
+        if target:
+            quote = quote.filter(Message.body.ilike("%%%s%%" % target))
     quote = quote.order_by(
         sa.func.random()
     ).first()

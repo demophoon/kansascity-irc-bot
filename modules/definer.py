@@ -47,7 +47,7 @@ def define(phenny, input):
                 Message.body.ilike("%% %s%%%s%%" % (
                     is_are,
                     search,
-                ):
+                ))
             )
         ).filter(sa.not_(
             Message.body.ilike("demophoon_%")
@@ -98,5 +98,5 @@ def define(phenny, input):
             search,
         )
     phenny.say(" ".join([x.replace(" ", "") for x in msg.split(" ") if not(x.replace(" ", "") == "")]))
-define.rule = r"demophoon\W? (what|when|where|why|which|who|how|can|did|does) (\w+) ([a-zA-Z0-9 \-,]+)\??"
+define.rule = r"demophoon\W? (what|when|where|why|which|who|how|can|did|does) (\w+) ([a-zA-Z0-9 \-,'\"]+)\??"
 define.priority = "medium"
