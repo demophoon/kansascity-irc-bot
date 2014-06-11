@@ -939,6 +939,18 @@ pats.priority = 'medium'
 
 
 @smart_ignore
+def slaps(phenny, input):
+    matches = re.search(slaps.rule, input.group())
+    if not matches:
+        return
+    phenny.say(random.choice([
+        "\x01ACTION slaps %s" % matches.groups()[1],
+    ]))
+slaps.rule = "^(!|\x01ACTION )slaps? (.*)"
+slaps.priority = 'medium'
+
+
+@smart_ignore
 def your_mom(phenny, input):
     if "demophoon" in input.lower():
         return

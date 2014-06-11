@@ -10,6 +10,11 @@ import sqlalchemy as sa
 from quote import DBSession, Message
 
 
+def action(msg):
+    msg = '\x01ACTION %s\x01' % msg
+    return msg
+
+
 def define(phenny, input):
     matches = re.search(define.rule, input.group())
     if not matches:
@@ -17,6 +22,9 @@ def define(phenny, input):
     what = matches.groups()[0]
     is_are = matches.groups()[1]
     target = matches.groups()[2]
+    if what == "where" and is_are == "all" and target == "the white women at":
+        phenny.say(action("raises hand"))
+        return
     if target.lower().startswith("you"):
         target = target.replace("you", "i")
         is_are = "am"
@@ -98,5 +106,5 @@ def define(phenny, input):
             search,
         )
     phenny.say(" ".join([x.replace(" ", "") for x in msg.split(" ") if not(x.replace(" ", "") == "")]))
-define.rule = r"demophoon\W? (what|when|where|why|which|who|how|can|did|does) (\w+) ([a-zA-Z0-9 \-,'\"]+)\??"
+define.rule = r"demophoon\W? (what|when|where|why|which|who|how|can|did|does) ([a-zA-Z']+) ([a-zA-Z0-9 \-,'\"]+)\??"
 define.priority = "medium"
