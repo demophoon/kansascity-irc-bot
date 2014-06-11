@@ -928,13 +928,13 @@ pod_bay_doors.priority = 'medium'
 
 @smart_ignore
 def pats(phenny, input):
-    phenny.say(random.choice([
-        "\x01ACTION giggles and smiles",
-        "\x01ACTION smiles really big",
-        "\x01ACTION grins a little bit",
-        "\x01ACTION grins real big",
-        "\x01ACTION gives %s a hug" % input.nick,
-    ]))
+    phenny.say(action(random.choice([
+        "giggles and smiles",
+        "smiles really big",
+        "grins a little bit",
+        "grins real big",
+        "gives %s a hug" % input.nick,
+    ])))
 pats.rule = "\x01ACTION pats demophoon on the head"
 pats.priority = 'medium'
 
@@ -944,9 +944,7 @@ def slaps(phenny, input):
     matches = re.search(slaps.rule, input.group())
     if not matches:
         return
-    phenny.say(random.choice([
-        action("slaps %s" % matches.groups()[1]),
-    ]))
+    phenny.say(action("slaps %s" % matches.groups()[1]))
 slaps.rule = "^(!|\x01ACTION )slaps? (.*)"
 slaps.priority = 'medium'
 
