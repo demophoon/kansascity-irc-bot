@@ -29,13 +29,14 @@ Base = declarative_base()
 def get_current_time():
     return datetime.datetime.now()
 
+ignored_nicks = [
+    ".*bot",
+]
+
 
 def check_ignore(phenny, input):
     if input.owner:
         return False
-    ignored_nicks = [
-        ".*bot",
-    ]
     nick = input.nick
     if not input.sender.startswith("#"):
         return True
@@ -944,10 +945,36 @@ def slaps(phenny, input):
     if not matches:
         return
     phenny.say(random.choice([
-        "\x01ACTION slaps %s" % matches.groups()[1],
+        action("slaps %s" % matches.groups()[1]),
     ]))
 slaps.rule = "^(!|\x01ACTION )slaps? (.*)"
 slaps.priority = 'medium'
+
+
+@smart_ignore
+def ignore(phenny, input):
+    global ignored_nicks
+    if not input.owner:
+        return
+    matches = re.search(slaps.rule, input.group())
+    if not matches:
+        return
+    ignored_nicks.push(matches.groups()[0])
+ignore.rule = "^!ignore (.*)"
+ignore.priority = 'medium'
+
+
+@smart_ignore
+def unignore(phenny, input):
+    global ignored_nicks
+    if not input.owner:
+        return
+    matches = re.search(slaps.rule, input.group())
+    if not matches:
+        return
+    ignored_nicks.remove(matches.groups()[0])
+unignore.rule = "^!unignore (.*)"
+unignore.priority = 'medium'
 
 
 @smart_ignore
