@@ -7,7 +7,7 @@ import itertools
 
 import sqlalchemy as sa
 
-from quote import DBSession, Message
+from modules.quote import DBSession, Message
 
 
 def action(msg):
@@ -16,12 +16,14 @@ def action(msg):
 
 
 def define(phenny, input):
-    matches = re.search(define.rule, input.group())
-    if not matches:
-        return
-    what = matches.groups()[0]
-    is_are = matches.groups()[1]
-    target = matches.groups()[2]
+    what = input.groups()[0]
+    is_are = input.groups()[1]
+    target = input.groups()[2]
+    if input.sender in [
+        "##kcshoptalk",
+        "##brittslittlesliceofheaven"
+    ] and target == "retarded":
+        is_are = "beena " + is_are
     if what == "where" and is_are == "all" and target == "the white women at":
         phenny.say(action("raises hand"))
         return
@@ -58,7 +60,7 @@ def define(phenny, input):
                 ))
             )
         ).filter(sa.not_(
-            Message.body.ilike("demophoon_%")
+            Message.body.ilike("%s_%%" % phenny.nick)
         )).order_by(
             sa.func.random()
         )
@@ -85,7 +87,7 @@ def define(phenny, input):
             ), re.IGNORECASE),
             definition.body,
         )
-        target = matches.groups()[2]
+        target = input.groups()[2]
         msg = "%s %s %s" % (
             search,
             is_are,
@@ -99,12 +101,12 @@ def define(phenny, input):
             ), re.IGNORECASE),
             definition.body,
         )
-        target = matches.groups()[2]
+        target = input.groups()[2]
         msg = "%s %s %s" % (
             matches_two.groups()[0],
             is_are,
             search,
         )
     phenny.say(" ".join([x.replace(" ", "") for x in msg.split(" ") if not(x.replace(" ", "") == "")]))
-define.rule = r"demophoon\W? (what|when|where|why|which|who|how|can|did|does) ([a-zA-Z']+) ([a-zA-Z0-9 \-,'\"]+)\??"
+define.rule = r"$nickname\W? (what|when|where|why|which|who|how|can|did|does) ([a-zA-Z']+) ([a-zA-Z0-9 \-,'\"]+)\??"
 define.priority = "medium"

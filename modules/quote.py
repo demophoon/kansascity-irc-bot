@@ -40,6 +40,7 @@ def check_ignore(phenny, input):
     nick = input.nick
     if not input.sender.startswith("#"):
         return True
+    print ignored_nicks
     for ignored_nick in ignored_nicks:
         if re.search(re.compile(ignored_nick, re.IGNORECASE), nick):
             return True
@@ -50,6 +51,10 @@ def smart_ignore(fn):
         if check_ignore(phenny, input):
             return None
         if input.sender in limited_channels:
+            if limited_channels[input.sender].get('allowed'):
+                if fn in [x._original for x in limited_channels[input.sender]['allowed']]:
+                    return fn
+                return None
             if fn in [x._original for x in limited_channels[input.sender]['ignored']]:
                 return None
         return fn(phenny, input)
@@ -276,11 +281,8 @@ grab_yourself_warnings = [
 
 @smart_ignore
 def grab(phenny, input):
-    matches = re.search(grab.rule, input.group())
-    if not matches:
-        return
-    target = matches.groups()[1]
-    offset = matches.groups()[2] or 0
+    target = input.groups()[1]
+    offset = input.groups()[2] or 0
     if target == input.nick:
         phenny.say(random.choice(grab_yourself_warnings))
     elif target == phenny.nick:
@@ -314,11 +316,8 @@ grab.thread = False
 
 @smart_ignore
 def tag(phenny, input):
-    matches = re.search(grab.rule, input.group())
-    if not matches:
-        return
-    target = matches.groups()[1]
-    offset = matches.groups()[2] or 0
+    target = input.groups()[1]
+    offset = input.groups()[2] or 0
     if target == input.nick:
         phenny.say(random.choice(grab_yourself_warnings))
     elif target == phenny.nick:
@@ -352,13 +351,13 @@ grab.thread = False
 
 @smart_ignore
 def touch(phenny, input):
-    matches = re.search(touch.rule, input.group())
-    if not matches:
+    input = re.search(touch.rule, input.group())
+    if not input:
         return
-    target = matches.groups()[2]
+    target = input.groups()[2]
     target = random.choice(["lgebaur", "timfreund's monitor"])
     phenny.msg(input.sender, action("touches %s with a moist foot." % target))
-touch.rule = r'^(!|\x01ACTION )touch(es)? ([a-zA-Z0-9-_]+)'
+touch.rule = r'^(!)touch(es)? ([a-zA-Z0-9-_]+)'
 touch.priority = 'medium'
 
 
@@ -386,9 +385,9 @@ random_quote.thread = False
 
 @smart_ignore
 def no_context(phenny, input):
-    matches = re.search(no_context.rule, input.group())
-    if matches:
-        target = matches.groups()[0]
+    input = re.search(no_context.rule, input.group())
+    if input:
+        target = input.groups()[0]
         msg = DBSession.query(Message).join(Room).filter(
             Room.name == input.sender
         ).filter(
@@ -411,10 +410,10 @@ no_context.thread = False
 
 @smart_ignore
 def random_user_quote(phenny, input):
-    matches = re.search(random_user_quote.rule, input.group())
-    if not matches:
+    input = re.search(random_user_quote.rule, input.group())
+    if not input:
         return
-    target = matches.groups()[0]
+    target = input.groups()[0]
     quote = DBSession.query(Quote).join(
         Message
     ).join(User).join(Room).filter(
@@ -441,10 +440,10 @@ random_user_quote.thread = False
 
 @smart_ignore
 def fetch_quote(phenny, input):
-    matches = re.search(fetch_quote.rule, input.group())
-    if not matches:
+    input = re.search(fetch_quote.rule, input.group())
+    if not input:
         return
-    target = matches.groups()[0]
+    target = input.groups()[0]
     quote = DBSession.query(Quote).join(
         Message
     ).join(User)
@@ -472,10 +471,10 @@ fetch_quote.thread = False
 
 @smart_ignore
 def word_count(phenny, input):
-    matches = re.search(word_count.rule, input.group())
-    if not matches:
+    input = re.search(word_count.rule, input.group())
+    if not input:
         return
-    target = matches.groups()[0]
+    target = input.groups()[0]
     wc = " ".join([x.body for x in DBSession.query(
         Message
     ).join(
@@ -496,10 +495,10 @@ word_count.thread = False
 
 
 def points(phenny, input):
-    matches = re.search(points.rule, input.group())
-    if not matches:
+    input = re.search(points.rule, input.group())
+    if not input:
         return
-    target = matches.groups()[1]
+    target = input.groups()[1]
     if target.lower() in ["everyone", "everybody"]:
         all_points = sorted(DBSession.query(
             sa.func.sum(Point.value),
@@ -566,10 +565,10 @@ def duration(seconds):
 
 
 def last_active(phenny, input):
-    matches = re.search(last_active.rule, input.group())
-    if not matches:
+    input = re.search(last_active.rule, input.group())
+    if not input:
         return
-    target = matches.groups()[1]
+    target = input.groups()[1]
     user = DBSession.query(User).join(Message).join(
         Room
     ).filter(
@@ -617,10 +616,10 @@ def give_highfive(phenny, input):
     if not high_five_avail:
         return
 
-    matches = re.search(give_highfive.rule, input.group())
-    if not matches:
+    input = re.search(give_highfive.rule, input.group())
+    if not input:
         return
-    highfive_type = matches.groups()[0]
+    highfive_type = input.groups()[0]
 
     regex = re.compile(" an? ([a-zA-Z- ]+) five")
     r = regex.search(current_high_five['type'])
@@ -663,7 +662,7 @@ def give_highfive(phenny, input):
         phenny.msg(input.sender, action(hf))
         high_five_avail = False
         current_high_five = None
-give_highfive.rule = r'^\x01ACTION gives demophoon an? ([a-zA-Z- ]+) five'
+give_highfive.rule = r'^\x01ACTION gives $nickname an? ([a-zA-Z- ]+) five'
 give_highfive.priority = 'medium'
 give_highfive.thread = False
 
@@ -775,11 +774,8 @@ user_point.thread = False
 
 @smart_ignore
 def give_respect(phenny, input):
-    matches = re.search(give_respect.rule, input.group())
-    if not matches:
-        return
-    target = matches.groups()[1]
-    if matches.groups()[2] == "++":
+    target = input.groups()[1]
+    if input.groups()[2] == "++":
         quantity = 1
     else:
         quantity = -1
@@ -806,10 +802,9 @@ give_respect.thread = False
 
 @smart_ignore
 def trending(phenny, input):
-    matches = re.search(trending.rule, input.group())
     target = 4
-    if matches.groups()[0]:
-        target = int(matches.groups()[0])
+    if input.groups()[0]:
+        target = int(input.groups()[0])
         if target > 99:
             target = 99
         if target < 0:
@@ -887,7 +882,7 @@ unsad.priority = 'medium'
 @smart_ignore
 def sandwich(phenny, input):
     phenny.say("Shut your whore mouth and make your own sandwich")
-sandwich.rule = "^demophoon\W+ make me a (sandwich|sammich)"
+sandwich.rule = "^$nickname\W+ make me a (sandwich|sammich)"
 sandwich.priority = 'medium'
 
 
@@ -922,7 +917,7 @@ command_help.priority = 'medium'
 @smart_ignore
 def pod_bay_doors(phenny, input):
     phenny.say("I'm sorry Dave, I'm afraid I can't do that")
-pod_bay_doors.rule = "^!?open the pod bay doors(, demophoon)?"
+pod_bay_doors.rule = "^!?open the pod bay doors(, $nickname)?"
 pod_bay_doors.priority = 'medium'
 
 
@@ -935,17 +930,14 @@ def pats(phenny, input):
         "grins real big",
         "gives %s a hug" % input.nick,
     ])))
-pats.rule = "\x01ACTION pats demophoon on the head"
+pats.rule = "\x01ACTION pats $nickname on the head"
 pats.priority = 'medium'
 
 
 @smart_ignore
 def slaps(phenny, input):
-    matches = re.search(slaps.rule, input.group())
-    if not matches:
-        return
-    phenny.say(action("slaps %s" % matches.groups()[1]))
-slaps.rule = "^(!|\x01ACTION )slaps? (.*)"
+    phenny.say(action("slaps %s" % input.groups()[1]))
+slaps.rule = "^(!)slaps? (.*)"
 slaps.priority = 'medium'
 
 
@@ -954,10 +946,8 @@ def ignore(phenny, input):
     global ignored_nicks
     if not input.owner:
         return
-    matches = re.search(slaps.rule, input.group())
-    if not matches:
-        return
-    ignored_nicks.push(matches.groups()[0])
+    ignored_nicks.append(input.groups()[0])
+    print ignored_nicks
 ignore.rule = "^!ignore (.*)"
 ignore.priority = 'medium'
 
@@ -967,24 +957,19 @@ def unignore(phenny, input):
     global ignored_nicks
     if not input.owner:
         return
-    matches = re.search(slaps.rule, input.group())
-    if not matches:
-        return
-    ignored_nicks.remove(matches.groups()[0])
+    ignored_nicks.remove(input.groups()[0])
+    print ignored_nicks
 unignore.rule = "^!unignore (.*)"
 unignore.priority = 'medium'
 
 
 @smart_ignore
 def your_mom(phenny, input):
-    if "demophoon" in input.lower():
-        return
-    matches = re.search(your_mom.rule, input.group())
-    if not matches:
+    if phenny.nick in input.lower():
         return
     msg = "Your mom %s %s." % (
-        matches.groups()[0],
-        matches.groups()[1],
+        input.groups()[0],
+        input.groups()[1],
     )
     if len(msg.split(" ")) > 20:
         return
@@ -996,10 +981,7 @@ your_mom.priority = 'medium'
 
 @smart_ignore
 def op_giver(phenny, input):
-    matches = re.search(op_giver.rule, input.group())
-    if not matches:
-        return
-    target = matches.groups()[1]
+    target = input.groups()[1]
     if input.owner:
         phenny.write(['MODE', "##brittslittlesliceofheaven", "+o", target])
 op_giver.rule = r'^(!|\x01ACTION )op ([a-zA-Z0-9\-_]+)$'
@@ -1008,10 +990,7 @@ op_giver.priority = 'medium'
 
 @smart_ignore
 def random_topic(phenny, input):
-    matches = re.search(random_topic.rule, input.group())
-    if not matches:
-        return
-    target = matches.groups()[1]
+    target = input.groups()[1]
 
     if target.isdigit():
         quote = DBSession.query(Quote).filter(
@@ -1051,7 +1030,8 @@ limited_channels = {
             random_user_quote,
             random_quote,
             trending,
-        ]
+        ],
+        "allowed": [],
     },
     "#r/kansascity": {
         "ignored": [
