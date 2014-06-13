@@ -922,6 +922,13 @@ pod_bay_doors.priority = 'medium'
 
 
 @smart_ignore
+def standup(phenny, input):
+    phenny.say(action("stands up"))
+standup.rule = "^will the real $nickname please stand up\??"
+standup.priority = 'medium'
+
+
+@smart_ignore
 def pats(phenny, input):
     phenny.say(action(random.choice([
         "giggles and smiles",
