@@ -35,15 +35,19 @@ ignored_nicks = [
 
 
 def check_ignore(phenny, input):
-    if input.owner:
-        return False
-    nick = input.nick
+    ignore = False
     if not input.sender.startswith("#"):
-        return True
-    print ignored_nicks
+        ignore = True
     for ignored_nick in ignored_nicks:
-        if re.search(re.compile(ignored_nick, re.IGNORECASE), nick):
-            return True
+        if re.search(re.compile(ignored_nick, re.IGNORECASE), input.nick):
+            ignore = True
+            print "%s is ignored by rule %s" % (
+                input.nick,
+                ignored_nick
+            )
+    if input.owner:
+        ignore = False
+    return ignore
 
 
 def smart_ignore(fn):
@@ -351,9 +355,6 @@ grab.thread = False
 
 @smart_ignore
 def touch(phenny, input):
-    input = re.search(touch.rule, input.group())
-    if not input:
-        return
     target = input.groups()[2]
     target = random.choice(["lgebaur", "timfreund's monitor"])
     phenny.msg(input.sender, action("touches %s with a moist foot." % target))
@@ -385,8 +386,7 @@ random_quote.thread = False
 
 @smart_ignore
 def no_context(phenny, input):
-    input = re.search(no_context.rule, input.group())
-    if input:
+    if input.groups():
         target = input.groups()[0]
         msg = DBSession.query(Message).join(Room).filter(
             Room.name == input.sender
@@ -410,9 +410,6 @@ no_context.thread = False
 
 @smart_ignore
 def random_user_quote(phenny, input):
-    input = re.search(random_user_quote.rule, input.group())
-    if not input:
-        return
     target = input.groups()[0]
     quote = DBSession.query(Quote).join(
         Message
@@ -565,9 +562,6 @@ def duration(seconds):
 
 
 def last_active(phenny, input):
-    input = re.search(last_active.rule, input.group())
-    if not input:
-        return
     target = input.groups()[1]
     user = DBSession.query(User).join(Message).join(
         Room
@@ -669,7 +663,7 @@ give_highfive.thread = False
 
 @smart_ignore
 def user_point(phenny, input):
-    matches = re.search(user_point.rule, input.group())
+    matches = input
     modifier = 1
     if not matches or not matches.groups():
         return
@@ -701,8 +695,8 @@ def user_point(phenny, input):
     elif quantity.lower() in ["some", "many", "much", "wow", "so", "such", "lotsa"]:
         quantity = random.choice(range(2,10))
     elif quantity.lower() in ["all"]:
+        quantity = 10
         if point_type.split(" ")[0] == "the":
-            quantity = 10
             point_type = " ".join(point_type.split(" ")[1:])
     else:
         try:

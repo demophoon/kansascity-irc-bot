@@ -32,9 +32,16 @@ class message_handler(str):
     nick = None
     sender = None
     message = None
+    owner = None
+
+    def __init__(self, *args, **kwargs):
+        pass
 
     def group(self):
         return self.message
+
+    def groups(self):
+        pass
 
 
 def main():
@@ -121,6 +128,7 @@ def main():
 
                     for method in valid_methods:
                         if method[0].match(msg):
+                            m.groups = lambda: method[0].match(msg).groups()
                             if not method[1] == quote.logger:
                                 print "%s <%s>: %s" % (str(date), m.nick, m)
                             method[1](p, m)
