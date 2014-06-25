@@ -16,20 +16,22 @@ def action(msg):
 
 
 def define(phenny, input):
-    what = input.groups()[0]
-    is_are = input.groups()[1]
-    target = input.groups()[2]
-    if input.sender in [
-        "##kcshoptalk",
-        "##brittslittlesliceofheaven"
-    ] and target == "retarded":
-        is_are = "beena " + is_are
+    what = input.groups()[0].lower()
+    is_are = input.groups()[1].lower()
+    target = input.groups()[2].lower()
+
+    allow_reverse = False
+
     if what == "where" and is_are == "all" and target == "the white women at":
         phenny.say(action("raises hand"))
         return
-    if target.lower().startswith("you"):
-        target = target.replace("you", "i")
+    if target.split(" ")[0] in ["you"]:
+        target = target.replace(target.split(" ")[0], "i")
         is_are = "am"
+    elif target.split(" ")[0] in ["your"]:
+        target = target.replace(target.split(" ")[0], "my")
+        #is_are = " ".join(target.split(" ")[1:])
+        #target = target.split(" ")[0]
     if what.lower() == "why":
         is_are = "because"
     elif what.lower() == "where":
@@ -48,23 +50,33 @@ def define(phenny, input):
             break
         search = " ".join(search)
         print "Search:", search
-        definition = DBSession.query(Message).filter(
-            sa.or_(
-                Message.body.ilike("%%%s%% %s%%" % (
-                    search,
-                    is_are,
-                )),
-                Message.body.ilike("%% %s%%%s%%" % (
-                    is_are,
-                    search,
-                ))
+        if allow_reverse:
+            definition = DBSession.query(Message).filter(
+                sa.or_(
+                    Message.body.ilike("%%%s%% %s%%" % (
+                        search,
+                        is_are,
+                    )),
+                    Message.body.ilike("%% %s%%%s%%" % (
+                        is_are,
+                        search,
+                    ))
+                )
             )
-        ).filter(sa.not_(
+        else:
+            definition = DBSession.query(Message).filter(
+                sa.or_(
+                    Message.body.ilike("%%%s%% %s%%" % (
+                        search,
+                        is_are,
+                    ))
+                )
+            )
+        definition = definition.filter(sa.not_(
             Message.body.ilike("%s_%%" % phenny.nick)
         )).order_by(
             sa.func.random()
-        )
-        definition = definition.first()
+        ).first()
         if not definition:
             continue
         if not re.search(define.rule, definition.body):
@@ -87,6 +99,8 @@ def define(phenny, input):
             ), re.IGNORECASE),
             definition.body,
         )
+        if not matches_two:
+            return
         target = input.groups()[2]
         msg = "%s %s %s" % (
             search,
@@ -101,6 +115,8 @@ def define(phenny, input):
             ), re.IGNORECASE),
             definition.body,
         )
+        if not matches_two:
+            return
         target = input.groups()[2]
         msg = "%s %s %s" % (
             matches_two.groups()[0],
