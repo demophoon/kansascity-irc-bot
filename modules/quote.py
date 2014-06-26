@@ -777,7 +777,8 @@ def give_respect(phenny, input):
         if identifier == "--":
           quanitity = -1
         targets += [[(y, quanitity) for y in x.split(identifier) if y][0] for x in input.split(" ") if identifier in x]
-    for target in targets:
+    updates = []
+    for target in set(targets):
         if not(target[0] == input.nick) or target[0] == phenny.nick:
             user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target[0])).first()
             if user_id:
@@ -792,7 +793,8 @@ def give_respect(phenny, input):
                 user_points = 0
                 for point in points:
                     user_points += point.value
-                phenny.say("%s now has %d respect." % (user_id.nick, user_points))
+                updates.append("%s now has %d respect." % (user_id.nick, user_points))
+    phenny.say(" ".join(updates))
 give_respect.rule = r".*(\+\+|--)"
 give_respect.priority = 'medium'
 give_respect.thread = False
