@@ -768,28 +768,32 @@ user_point.thread = False
 
 @smart_ignore
 def give_respect(phenny, input):
-    target = input.groups()[1]
-    if input.groups()[2] == "++":
-        quantity = 1
-    else:
-        quantity = -1
     awarded_by = DBSession.query(User).filter(User.nick.ilike("%s%%" % input.nick)).first()
-    if not(target == input.nick) or target == phenny.nick:
-        user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target)).first()
-        if user_id:
-            DBSession.add(Point("respect", user_id.id, awarded_by.id, quantity))
-            DBSession.flush()
-            DBSession.commit()
-            points = DBSession.query(Point).join(
-                User, Point.user_id == User.id
-            ).filter(
-                Point.type == "respect"
-            ).filter(User.nick.ilike("%s%%" % target)).all()
-            user_points = 0
-            for point in points:
-                user_points += point.value
-            phenny.say("%s now has %d respect." % (user_id.nick, user_points))
-give_respect.rule = r"(^|.* )([a-zA-Z0-9_]+)(\+\+|--)"
+
+    words = input.split(" ")
+    targets = []
+    for identifier in ["++", "--"]:
+        quanitity = 1
+        if identifier == "--":
+          quanitity = -1
+        targets += [[(y, quanitity) for y in x.split(identifier) if y][0] for x in input.split(" ") if identifier in x]
+    for target in targets:
+        if not(target[0] == input.nick) or target[0] == phenny.nick:
+            user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target[0])).first()
+            if user_id:
+                DBSession.add(Point("respect", user_id.id, awarded_by.id, target[1]))
+                DBSession.flush()
+                DBSession.commit()
+                points = DBSession.query(Point).join(
+                    User, Point.user_id == User.id
+                ).filter(
+                    Point.type == "respect"
+                ).filter(User.nick.ilike("%s%%" % target[0])).all()
+                user_points = 0
+                for point in points:
+                    user_points += point.value
+                phenny.say("%s now has %d respect." % (user_id.nick, user_points))
+give_respect.rule = r".*(\+\+|--)"
 give_respect.priority = 'medium'
 give_respect.thread = False
 
