@@ -60,8 +60,8 @@ def get_video_information(videoid):
 
 @smart_ignore
 def yt_context(phenny, input):
-    matches = re.match(yt_context.rule, input.group())
-    target = matches.groups()[0]
+    target = input.groups()[0]
+    print target
     video_id = parse_qs(urlparse(target).query).get("v")
     if not video_id:
         video_id = [urlparse(target).path[1:]]
@@ -77,7 +77,7 @@ def yt_context(phenny, input):
 # https://www.youtube.com/watch?v=ygr5AHufBN4
 # https://youtu.be/ygr5AHufBN4
 
-yt_context.rule = r'.*(https?://.*?youtu.*)\s?'
+yt_context.rule = r'.*(https?://.*?youtu\S*)\s?'
 yt_context.priority = 'medium'
 
 limited_channels = {
