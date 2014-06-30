@@ -298,7 +298,7 @@ def grab(phenny, input):
             Room.name == input.sender
         ).filter(
             not_(Message.body.like("!%"))
-        ).order_by(Message.created_at.desc()).all()
+        ).order_by(Message.created_at.desc()).limit(1 + offset).all()
         if not message:
             phenny.say("I don't remember what %s said. :(" % target)
         else:
@@ -769,16 +769,15 @@ user_point.thread = False
 @smart_ignore
 def give_respect(phenny, input):
     awarded_by = DBSession.query(User).filter(User.nick.ilike("%s%%" % input.nick)).first()
-
     words = input.split(" ")
     targets = []
     for identifier in ["++", "--"]:
         quanitity = 1
         if identifier == "--":
           quanitity = -1
-        targets += [[(y, quanitity) for y in x.split(identifier) if y][0] for x in input.split(" ") if identifier in x]
+        targets += [[(y, quanitity) for y in x.split(identifier) if y] for x in input.split(" ") if identifier in x]
     updates = []
-    for target in set(targets):
+    for target in set([x[0] for x in targets if any(x)]):
         if not(target[0] == input.nick) or target[0] == phenny.nick:
             user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target[0])).first()
             if user_id:
