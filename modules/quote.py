@@ -824,7 +824,7 @@ def trending(phenny, input):
         "made", "may", "part", "it's", "", "!grab", "!nocontext",
         "!quote", "!random", "i've", "me", "am", "just", "!trending",
         "lol", "!give", "!wc", "\x01action", "!points", "i'm", "oh",
-        "that's", "thats",
+        "that's", "thats", "you're", "should", "didn't", "shouldn't",
     ]
     ignore_list += [phenny.nick.lower(),
                     "%s:" % phenny.nick.lower(),
