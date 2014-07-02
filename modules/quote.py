@@ -767,6 +767,37 @@ user_point.thread = False
 
 
 @smart_ignore
+def transfer(phenny, input):
+    if not input.owner:
+        return
+    src_user = DBSession.query(User).filter(
+        User.nick.ilike("%s%%" % input.groups()[0])
+    ).first()
+    dest_user = DBSession.query(User).filter(
+        User.nick.ilike("%s%%" % input.groups()[1])
+    ).first()
+    if not all([src_user, dest_user]):
+        phenny.say("Unable to complete command.")
+        return
+    all_points = DBSession.query(Point).filter(
+        Point.user_id == src_user.id
+    ).all()
+    updates = []
+    for point in all_points:
+        point.user_id = dest_user.id
+        updates.append(point)
+    DBSession.add_all(updates)
+    DBSession.flush()
+    DBSession.commit()
+    phenny.say("Points have been transferred from %s to %s" % (
+        src_user.nick, dest_user.nick
+    ))
+transfer.rule = "^!transfer (.*) (.*)"
+transfer.priority = 'medium'
+transfer.thread = False
+
+
+@smart_ignore
 def give_respect(phenny, input):
     awarded_by = DBSession.query(User).filter(User.nick.ilike("%s%%" % input.nick)).first()
     words = input.split(" ")
