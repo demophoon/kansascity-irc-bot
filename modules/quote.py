@@ -286,7 +286,7 @@ grab_yourself_warnings = [
 @smart_ignore
 def grab(phenny, input):
     target = input.groups()[1]
-    offset = input.groups()[2] or 0
+    offset = int(input.groups()[2]) or 0
     if target == input.nick:
         phenny.say(random.choice(grab_yourself_warnings))
     elif target == phenny.nick:
