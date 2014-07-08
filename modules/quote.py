@@ -286,7 +286,9 @@ grab_yourself_warnings = [
 @smart_ignore
 def grab(phenny, input):
     target = input.groups()[1]
-    offset = int(input.groups()[2]) or 0
+    offset = 0
+    if offset:
+        offset = int(input.groups()[2])
     if target == input.nick:
         phenny.say(random.choice(grab_yourself_warnings))
     elif target == phenny.nick:
@@ -912,8 +914,11 @@ unsad.priority = 'medium'
 
 @smart_ignore
 def sandwich(phenny, input):
-    phenny.say("Shut your whore mouth and make your own sandwich")
-sandwich.rule = "^$nickname\W+ make me a (sandwich|sammich)"
+    if "sudo" in input:
+        phenny.say(action("makes %s a sandwich" % input.nick))
+    else:
+        phenny.say("Shut your whore mouth and make your own sandwich")
+sandwich.rule = "^($nickname|sudo $nickname)\W? make me a (sandwich|sammich)"
 sandwich.priority = 'medium'
 
 
