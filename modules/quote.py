@@ -5,6 +5,9 @@ import datetime
 import random
 import re
 import collections
+import urllib
+import urllib2
+import json
 
 # ----- Models -----
 
@@ -45,7 +48,7 @@ def check_ignore(phenny, input):
                 input.nick,
                 ignored_nick
             )
-    if input.owner:
+    if input.admin:
         ignore = False
     return ignore
 
@@ -203,18 +206,9 @@ highfives = [
         "value": 1,
     },
     {
-        "type": "throws hand up in the air for a moist high five!",
-        "value": 1,
-    },
-    {
         "type": "throws both hands in the air for a double high five!",
         "value": 2,
         "response": "gives %(nick)s a double high five and two %(item)s seeing that they now have %(points)d %(item)s.",
-    },
-    {
-        "type": "puts his ass in the air for an ass five",
-        "value": -1,
-        "response": "takes a beer from %(nick)s. What the hell %(nick)s?!?",
     },
 ]
 
@@ -247,6 +241,17 @@ def logger(phenny, input):
     DBSession.add(msg)
     DBSession.flush()
     DBSession.commit()
+
+    last_messages = DBSession.query(Message).join(Room).filter(
+        Room.name==input.sender
+    ).order_by(
+        Message.created_at.desc()
+    ).limit(10).all()
+
+    common = collections.Counter([x.body.strip() for x in last_messages]).most_common(1)
+    if common[0][0] == input.strip() and common[0][1] >= 2 + random.choice(range(3)):
+        if random.choice(range(10)) == 0:
+            phenny.say(common[0][0])
 
     if input.sender in limited_channels:
         return
@@ -307,7 +312,7 @@ def grab(phenny, input):
             message = message[int(offset)]
             grabber_user = DBSession.query(User).filter(
                 User.nick.ilike("%s%%" % input.nick)
-            ).first()
+            ).order_by(User.nick.asc()).first()
             new_quote = Quote()
             new_quote.message_id = message.id
             new_quote.grabbed_by = grabber_user.id
@@ -342,7 +347,7 @@ def tag(phenny, input):
             message = message[int(offset)]
             grabber_user = DBSession.query(User).filter(
                 User.nick.ilike("%s%%" % input.nick)
-            ).first()
+            ).order_by(User.nick.asc()).first()
             new_quote = Quote()
             new_quote.message_id = message.id
             new_quote.grabbed_by = grabber_user.id
@@ -470,9 +475,6 @@ fetch_quote.thread = False
 
 @smart_ignore
 def word_count(phenny, input):
-    input = re.search(word_count.rule, input.group())
-    if not input:
-        return
     target = input.groups()[0]
     wc = " ".join([x.body for x in DBSession.query(
         Message
@@ -519,7 +521,7 @@ def points(phenny, input):
         return
     user = DBSession.query(User).filter(
         User.nick.ilike("%s%%" % target)
-    ).first()
+    ).order_by(User.nick.asc()).first()
     if not user:
         return
     user_points = {}
@@ -774,10 +776,10 @@ def transfer(phenny, input):
         return
     src_user = DBSession.query(User).filter(
         User.nick.ilike("%s%%" % input.groups()[0])
-    ).first()
+    ).order_by(User.nick.asc()).first()
     dest_user = DBSession.query(User).filter(
         User.nick.ilike("%s%%" % input.groups()[1])
-    ).first()
+    ).order_by(User.nick.asc()).first()
     if not all([src_user, dest_user]):
         phenny.say("Unable to complete command.")
         return
@@ -811,21 +813,26 @@ def give_respect(phenny, input):
         targets += [[(y, quanitity) for y in x.split(identifier) if y] for x in input.split(" ") if identifier in x]
     updates = []
     for target in set([x[0] for x in targets if any(x)]):
-        if not(target[0] == input.nick) or target[0] == phenny.nick:
+        if len(target[0]) >= 2 and not(target[0] == input.nick) or target[0] == phenny.nick:
             user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target[0])).first()
-            if user_id:
-                DBSession.add(Point("respect", user_id.id, awarded_by.id, target[1]))
-                DBSession.flush()
-                DBSession.commit()
-                points = DBSession.query(Point).join(
-                    User, Point.user_id == User.id
-                ).filter(
-                    Point.type == "respect"
-                ).filter(User.nick.ilike("%s%%" % target[0])).all()
-                user_points = 0
-                for point in points:
-                    user_points += point.value
-                updates.append("%s now has %d respect." % (user_id.nick, user_points))
+            if not user_id:
+                new_user = User()
+                new_user.nick = target[0]
+                DBSession.add(new_user)
+                user_id = DBSession.query(User).filter(User.nick.ilike("%s%%" % target[0])).first()
+
+            DBSession.add(Point("respect", user_id.id, awarded_by.id, target[1]))
+            DBSession.flush()
+            DBSession.commit()
+            points = DBSession.query(Point).join(
+                User, Point.user_id == User.id
+            ).filter(
+                Point.type == "respect"
+            ).filter(User.nick.ilike("%s%%" % target[0])).all()
+            user_points = 0
+            for point in points:
+                user_points += point.value
+            updates.append("%s now has %d karma." % (user_id.nick, user_points))
     phenny.say(" ".join(updates))
 give_respect.rule = r".*(\+\+|--)"
 give_respect.priority = 'medium'
@@ -907,7 +914,6 @@ def unsad(phenny, input):
         ":]",
         ":-]",
     ]))
-
 unsad.rule = r'$^(:\W*[\(\[\{]|[D\)\]\}]\W*:)'
 unsad.priority = 'medium'
 
@@ -963,16 +969,24 @@ def standup(phenny, input):
 standup.rule = "^will the real $nickname please stand up\??"
 standup.priority = 'medium'
 
-
 @smart_ignore
 def pats(phenny, input):
-    phenny.say(action(random.choice([
-        "giggles and smiles",
-        "smiles really big",
-        "grins a little bit",
-        "grins real big",
-        "gives %s a hug" % input.nick,
-    ])))
+    facts = {
+        'nick': input.nick,
+        'number': random.randint(1000, 100000),
+    }
+    if input.nick == 'bgresham':
+        saying = random.choice(james_sayings)
+        saying = saying % facts
+        phenny.say(saying)
+    else:
+        phenny.say(action(random.choice([
+            "giggles and smiles",
+            "smiles really big",
+            "grins a little bit",
+            "grins real big",
+            "gives %s a hug" % input.nick,
+        ])))
 pats.rule = "\x01ACTION pats $nickname on the head"
 pats.priority = 'medium'
 
@@ -982,6 +996,50 @@ def slaps(phenny, input):
     phenny.say(action("slaps %s" % input.groups()[1]))
 slaps.rule = "^(!)slaps? (.*)"
 slaps.priority = 'medium'
+
+
+#@smart_ignore
+#def five_left(phenny, input):
+#    phenny.say("\\o")
+#five_left.rule = "o\/"
+#five_left.priority = 'medium'
+#
+#
+#@smart_ignore
+#def five_right(phenny, input):
+#    phenny.say("o/")
+#five_right.rule = "^\\o$"
+#five_right.priority = 'medium'
+#
+#
+#@smart_ignore
+#def double_five_left(phenny, input):
+#    phenny.say("\\o\\")
+#double_five_left.rule = "^/o/$"
+#double_five_left.priority = 'medium'
+#
+#
+#@smart_ignore
+#def double_five_right(phenny, input):
+#    phenny.say("/o/")
+#double_five_right.rule = "^\\o\\$"
+#double_five_right.priority = 'medium'
+#
+
+@smart_ignore
+def awwyiss(phenny, input):
+    url = 'http://awyisser.com/api/generator'
+    data = {"phrase": input.groups()[1]}
+    data = urllib.urlencode(data)
+    req = urllib2.Request(url, data)
+    response = json.loads(urllib2.urlopen(req).read())
+
+    phenny.say("aw yiss. motha. fuckin. %s. %s" % (
+        input.groups()[1],
+        response.get("link", ""))
+    )
+awwyiss.rule = "^(aw+ ?yis+),? (.*)"
+awwyiss.priority = 'medium'
 
 
 @smart_ignore

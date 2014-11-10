@@ -16,10 +16,12 @@ tokenizer = nltk.tokenize.RegexpTokenizer("[\w'-]+")
 
 
 def get_synonyms(word):
-    similar_words = [x.similar_tos() for x in wn.synsets(word)]
-    similar_words = [item.lemma_names for l in similar_words for item in l]
-    suggestions = [word for l in similar_words for word in l]
-    return suggestions
+    if len(word) > 1:
+        similar_words = [x.similar_tos() for x in wn.synsets(word)]
+        similar_words = [item.lemma_names for l in similar_words for item in l]
+        suggestions = [word for l in similar_words for word in l]
+        return suggestions
+    return [word]
 
 
 def action(msg):
@@ -38,6 +40,19 @@ word_definer.rule = r"^!define (\w+)"
 word_definer.priority = "medium"
 
 
+def syn_func(msg):
+    words = tokenizer.tokenize(msg)
+    for word in words:
+        suggestions = get_synonyms(word)
+        if word.lower() == "windows":
+            suggestions.append("windurs")
+        if 'cardinal' in suggestions:
+            continue
+        if suggestions:
+            msg = msg.replace(word, random.choice(suggestions), 1)
+    return msg
+
+
 def synonymize(phenny, input):
     target = input.groups()[1].lower()
     words = tokenizer.tokenize(target)
@@ -52,12 +67,7 @@ def synonymize(phenny, input):
         ).order_by(Message.created_at.desc()).first()
         if message:
             target = message.body
-            words = tokenizer.tokenize(target)
-    for word in words:
-        suggestions = get_synonyms(word)
-        if suggestions:
-            target = target.replace(word, random.choice(suggestions), 1)
-    phenny.say(target)
+    phenny.say(syn_func(target))
 synonymize.rule = r"^!(synonymize|syn|rejigro) (.+)"
 synonymize.priority = "medium"
 
@@ -173,3 +183,37 @@ def define(phenny, input):
     phenny.say(" ".join([x.replace(" ", "") for x in msg.split(" ") if not(x.replace(" ", "") == "")]))
 define.rule = r"$nickname\W? (what|when|where|why|which|who|how|can|did|does|are|is) ([a-zA-Z']+) ([a-zA-Z0-9 \-,'\"]+)\??"
 define.priority = "medium"
+
+james_sayings = [
+    "%(nick)s, my love for you burns hot like the flames of those produced by %(number)d suns.",
+    "%(nick)s, my love for you burns like the flames of hell as they are infinite and eternal.",
+    "%(nick)s, the eternal happiness that I achieve when you message me cannot be calculated by any super computer known to man.",
+    "%(nick)s, If my love for you was to be expressed as a span of time it would be greater than %(number)d of years.",
+    "%(nick)s, I will follow you to the ends of the earth if it meant I could spend even one more moment with you.",
+    "%(nick)s, Your beauty rivals that of Aphrodite's.",
+    "%(nick)s, Your shine to your radiating smile is equivalent to that of a thousand exploding stars.",
+    "%(nick)s, Your gentle gaze can put a thousand warring men to sleep.",
+    "%(nick)s, Like a well made sword, your beauty can pierce even the toughest of hearts.",
+    "%(nick)s, If I could put a time limit on the love in which I have for you it would be 10,000 years, for it would not only last this lifetime, but for many more lifetimes after.",
+]
+
+
+def james_me(phenny, input):
+    facts = {
+        'nick': input.groups()[1].strip(),
+        'number': random.randint(1000, 10000000),
+    }
+    if facts['nick'].lower() == 'me':
+        facts['nick'] = input.nick
+    elif facts['nick'].lower() == 'demophoon':
+        phenny.say("no, thats weird.")
+        return
+    saying = random.choice(james_sayings)
+    saying = saying % facts
+    if random.choice(range(2)) == 1:
+        saying = syn_func(saying)
+    if input.groups()[0] == 'JAMES':
+        saying = saying.upper()
+    phenny.say(saying)
+james_me.rule = "^(james|JAMES|!hiton) (.*)"
+james_me.priority = 'medium'
