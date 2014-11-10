@@ -1074,9 +1074,9 @@ def your_mom(phenny, input):
     )
     if len(msg.split(" ")) > 20:
         return
-    if random.choice(range(50)) == 0:
+    if random.choice(range(25)) == 0:
         phenny.say(msg)
-your_mom.rule = r"^.* (is|has|used to be) (.+)\W?$"
+your_mom.rule = r"^.* (is a|has a|used to be) (.+)\W?$"
 your_mom.priority = 'medium'
 
 
