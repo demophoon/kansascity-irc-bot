@@ -205,7 +205,7 @@ def james_me(phenny, input):
     }
     if facts['nick'].lower() == 'me':
         facts['nick'] = input.nick
-    elif facts['nick'].lower() == 'demophoon':
+    elif facts['nick'].lower() == 'brittbot':
         phenny.say("no, thats weird.")
         return
     saying = random.choice(james_sayings)
