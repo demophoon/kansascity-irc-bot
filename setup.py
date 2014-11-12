@@ -15,5 +15,6 @@ setup(
         "nltk",
         "numpy",
         "pyyaml",
+        "pylast",
     ],
 )
