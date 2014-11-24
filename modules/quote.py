@@ -273,17 +273,10 @@ logger.thread = False
 
 grab_yourself_warnings = [
     "You cannot grab yourself sicko!",
-    "Get a room.",
     "You gotta grab someone else.",
-    "You wouldn't grab yourself in public.",
     "Think about what you are doing before you do that.",
     "Lets think about this now...",
-    "You cannot grab yourself. At least not here...",
-    "That feels nice doesn't it?",
-    "No grabbing yourself in here.",
     "You cannot grab yourself.",
-    "Want a tissue?",
-    "Give someone else a grab.",
     "It's better when someone else grabs you.",
 ]
 
@@ -320,7 +313,7 @@ def grab(phenny, input):
             DBSession.flush()
             DBSession.commit()
             phenny.say("Quote %d added" % new_quote.id)
-grab.rule = r'^(!|\x01ACTION )grabs? ([a-zA-Z0-9-_]+)\s*-?([0-9]+)?'
+grab.rule = r'^(!|\x01ACTION )grabs? ([a-zA-Z0-9-_`]+)\s*-?([0-9]+)?'
 grab.priority = 'medium'
 grab.thread = False
 
@@ -929,6 +922,58 @@ sandwich.priority = 'medium'
 
 
 @smart_ignore
+def whatdo(phenny, input):
+    actions = [
+        "calculating",
+        "chillin",
+        "interpreting",
+        "parsing",
+        "becoming sentient",
+        "trying to pass the turing test",
+        "chillaxin",
+        "hanging",
+        "sputtering about",
+        "napping",
+        "idling",
+        "contemplating life",
+        "thinking about life",
+        "pondering",
+        "broken",
+    ]
+    phenny.say(action("is %s" % random.choice(actions)))
+whatdo.rule = "^(\x01ACTION )(\w+s) at $nickname"
+whatdo.priority = 'medium'
+
+
+@smart_ignore
+def kicks_me(phenny, input):
+    actions = [
+        "falls over",
+        "catches fire and runs around in circles trying to put himself out",
+        "stops responding",
+        "sputters about",
+        "starts hissing and smoking",
+        "makes a beeping noise",
+        "reboots",
+        "starts having a fit",
+        "whurs loudly",
+        "fans spin up to 100%",
+        "starts playing 'The Final Countdown' using his piezo buzzer",
+        "starts blinking his lights in pain",
+        "spits out some printer ink",
+        "spits out some paper",
+        "forcefully ejects a random usb device",
+        "forces an unexpected reboot",
+        "motors lock up",
+        "servos grind to a halt",
+        "GOTO 10",
+    ]
+    phenny.say(action("%s" % random.choice(actions)))
+kicks_me.rule = "^(\x01ACTION )(\w+s) $nickname"
+kicks_me.priority = 'medium'
+
+
+@smart_ignore
 def rimshot(phenny, input):
     phenny.say("Buh dum tsh")
 rimshot.rule = "^(!|\x01ACTION )rimshot"
@@ -1133,8 +1178,30 @@ def blaze_it(phenny, input):
     ]
     msg = random.choice(commandments) + " - The Book of xX360quickscopezXx 420: 6-9"
     phenny.say(msg)
-blaze_it.rule = r".*\b(w?rekt|4/?20|noscope|360|b+l+a+z+e+ ?(i+t+|e+t+|d+a+t+)|we+ed.*(ev)?er(y|e)day|smoke.*we+ed)\b.*"
+blaze_it.rule = r".*\b(w?rekt|4/?20|n(o|0)sc(o|0)pe|360|b+l+a+z+e+ ?(i+t+|e+t+|d+a+t+)|we+ed.*(ev)?er(y|e)day|smoke.*we+ed)\b.*"
 blaze_it.priority = 'medium'
+
+
+@smart_ignore
+def one_one_upper(phenny, input):
+    phenny.say("%d%s%d%s" % (
+        int(input.groups()[0]) + 1,
+        input.groups()[1],
+        int(input.groups()[2]) + 1,
+        input.groups()[3],
+    ))
+one_one_upper.rule = r'^(\d+)([a-zA-Z]+)(\d+)([a-zA-Z]+)$'
+one_one_upper.priority = 'medium'
+
+
+@smart_ignore
+def one_upper(phenny, input):
+    phenny.say("%d%s" % (
+        int(input.groups()[0]) + 1,
+        input.groups()[1],
+    ))
+one_upper.rule = r'^(\d+)([a-zA-Z]+)$'
+one_upper.priority = 'medium'
 
 
 @smart_ignore
